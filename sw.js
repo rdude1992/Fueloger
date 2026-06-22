@@ -1,14 +1,18 @@
 // FuelLog Service Worker — network-first for HTML, cache-first for assets
 // Bump CACHE_VERSION on every deploy to trigger update flow
-const CACHE_VERSION = 'fuellog-v2';
+const CACHE_VERSION = 'fuellog-v5';
 const STATIC_CACHE  = `${CACHE_VERSION}-static`;
 
+// Relative paths — works whether deployed at root or under a sub-path
+// (e.g. username.github.io/fuellog/). Absolute "/" paths break on sub-path hosts.
 const STATIC_ASSETS = [
-  '/',
-  '/index.html',
-  '/manifest.json',
-  '/icon-192.png',
-  '/icon-512.png'
+  './',
+  './index.html',
+  './manifest.json',
+  './icon-192.png',
+  './icon-512.png',
+  './icon-maskable-192.png',
+  './icon-maskable-512.png'
 ];
 
 // ── MESSAGE: allow page to trigger skip-waiting ───────────────
@@ -16,12 +20,17 @@ self.addEventListener('message', e => {
   if (e.data?.type === 'SKIP_WAITING') self.skipWaiting();
 });
 
-// ── INSTALL: pre-cache all static assets ──────────────────────
+// ── INSTALL: pre-cache static assets (resilient — one failure won't block install) ──
 self.addEventListener('install', e => {
   e.waitUntil(
-    caches.open(STATIC_CACHE)
-      .then(cache => cache.addAll(STATIC_ASSETS))
-      .then(() => self.skipWaiting()) // activate immediately
+    caches.open(STATIC_CACHE).then(cache => {
+      // Cache each asset individually so one 404 doesn't fail the whole install
+      return Promise.all(
+        STATIC_ASSETS.map(asset =>
+          cache.add(asset).catch(err => console.warn('[SW] Failed to cache', asset, err))
+        )
+      );
+    }).then(() => self.skipWaiting())
   );
 });
 
@@ -34,9 +43,8 @@ self.addEventListener('activate', e => {
           .filter(k => k !== STATIC_CACHE)
           .map(k => caches.delete(k))
       ))
-      .then(() => self.clients.claim()) // take control of open tabs
+      .then(() => self.clients.claim())
       .then(() => {
-        // Tell every open tab: "new version is active, safe to reload"
         self.clients.matchAll({ type: 'window' }).then(clients => {
           clients.forEach(client => client.postMessage({ type: 'SW_UPDATED' }));
         });
@@ -49,14 +57,13 @@ self.addEventListener('fetch', e => {
   if (e.request.method !== 'GET') return;
 
   const url = new URL(e.request.url);
-  if (url.origin !== self.location.origin) return; // don't touch cross-origin
+  if (url.origin !== self.location.origin) return;
 
   const isHTML = e.request.destination === 'document'
-    || url.pathname === '/'
+    || url.pathname.endsWith('/')
     || url.pathname.endsWith('.html');
 
   if (isHTML) {
-    // Network-first: always try to get fresh HTML, fall back to cache
     e.respondWith(
       fetch(e.request)
         .then(resp => {
@@ -69,7 +76,6 @@ self.addEventListener('fetch', e => {
         .catch(() => caches.match(e.request))
     );
   } else {
-    // Cache-first: serve assets instantly, update cache in background
     e.respondWith(
       caches.match(e.request).then(cached => {
         const networkFetch = fetch(e.request).then(resp => {
@@ -78,7 +84,7 @@ self.addEventListener('fetch', e => {
             caches.open(STATIC_CACHE).then(c => c.put(e.request, clone));
           }
           return resp;
-        });
+        }).catch(() => cached);
         return cached || networkFetch;
       })
     );
