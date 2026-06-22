@@ -539,7 +539,7 @@
       </div>
     </div>
     <div class="setting-row" onclick="shareBackup()">
-      <div><div class="setting-label">Share / Save Backup</div><div class="setting-sub">Send to Drive, WhatsApp, Email, Files…</div></div>
+      <div><div class="setting-label">Share / Save Backup</div><div class="setting-sub" id="share-support-sub">Send to Drive, WhatsApp, Email, Files…</div></div>
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="setting-arrow"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg>
     </div>
     <div class="setting-row" onclick="exportData('json')">
@@ -2152,30 +2152,54 @@ function exportData(format) {
 }
 
 // Share backup via native Share sheet — lets user pick Drive, WhatsApp, Email, Files, etc.
-// Falls back to a plain download if Web Share API (or file sharing) isn't supported.
+// Tries file-share first, falls back to text-share, falls back to plain download.
 async function shareBackup() {
   const data = buildBackupPayload();
   const json = JSON.stringify(data, null, 2);
-  const filename = `fuellog-backup-${new Date().toISOString().split('T')[0]}.json`;
+  const dateTag = new Date().toISOString().split('T')[0];
+  const filename = `fuellog-backup-${dateTag}.json`;
+  const summary = `FuelLog backup — ${vehicles.length} vehicles, ${fuelEntries.length} fuel entries, ${tripEntries.length} trips, ${expenseEntries.length} expenses (${dateTag})`;
 
-  try {
-    const file = new File([json], filename, { type: 'application/json' });
-    if (navigator.canShare && navigator.canShare({ files: [file] })) {
-      await navigator.share({
-        files: [file],
-        title: 'FuelLog Backup',
-        text: `FuelLog backup — ${vehicles.length} vehicles, ${fuelEntries.length} fuel entries`
-      });
-      toast('Backup shared!');
+  const isSecure = window.isSecureContext;
+  const hasShare = typeof navigator.share === 'function';
+
+  // ── Attempt 1: native file share (Drive, WhatsApp, Files, etc.) ──
+  if (isSecure && hasShare) {
+    try {
+      const file = new File([json], filename, { type: 'application/json' });
+      const canShareFiles = navigator.canShare && navigator.canShare({ files: [file] });
+      if (canShareFiles) {
+        await navigator.share({ files: [file], title: 'FuelLog Backup', text: summary });
+        toast('Backup shared!');
+        markBackupDone();
+        return;
+      }
+    } catch (err) {
+      if (err?.name === 'AbortError') return; // user cancelled — not an error, don't fall through
+      console.warn('[FuelLog] File share failed, trying text share:', err);
+    }
+
+    // ── Attempt 2: text-only share (works on far more devices/browsers) ──
+    // Some Android share targets / browser versions reject file shares for
+    // arbitrary MIME types but still support sharing plain text. This won't
+    // attach the actual file, so we also trigger a download alongside it.
+    try {
+      await navigator.share({ title: 'FuelLog Backup', text: summary + '\n\n(Backup file downloaded separately — attach it manually if needed)' });
+      download(filename, json, 'application/json');
+      toast('Backup downloaded — share dialog opened for the summary');
       markBackupDone();
       return;
+    } catch (err) {
+      if (err?.name === 'AbortError') return;
+      console.warn('[FuelLog] Text share also failed:', err);
     }
-  } catch (err) {
-    if (err?.name === 'AbortError') return; // user cancelled the share sheet — not an error
-    // fall through to download fallback below
+  } else if (!isSecure) {
+    console.warn('[FuelLog] Share unavailable: not a secure context (needs HTTPS). Falling back to download.');
+  } else if (!hasShare) {
+    console.warn('[FuelLog] Share unavailable: navigator.share not supported on this browser. Falling back to download.');
   }
 
-  // Fallback: device/browser doesn't support file sharing — just download
+  // ── Fallback: plain download ──
   download(filename, json, 'application/json');
   toast('Backup downloaded! Move it to Drive, email it, or save it somewhere safe.');
   markBackupDone();
@@ -2284,11 +2308,48 @@ function updateBackupSettingsRow() {
   const sub = document.getElementById('last-backup-sub');
   if (!sub) return;
   const last = DB.get('fl_last_backup', null);
-  if (!last) { sub.textContent = 'Never backed up'; sub.style.color = 'var(--amber)'; return; }
+  if (!last) {
+    sub.textContent = 'Never backed up';
+    sub.style.color = 'var(--amber)';
+    updateShareSupportRow();
+    return;
+  }
   const days = daysSinceLastBackup();
   const dateStr = fmtDate(last.split('T')[0]);
   sub.textContent = days === 0 ? `Today (${dateStr})` : days === 1 ? `Yesterday (${dateStr})` : `${days} days ago (${dateStr})`;
   sub.style.color = days >= parseInt(getBackupFreqDays()||'999',10) ? 'var(--amber)' : 'var(--green)';
+  updateShareSupportRow();
+}
+
+// Tells the user up front whether file-sharing will actually work on this device,
+// instead of silently falling back to download with no explanation.
+function updateShareSupportRow() {
+  const el = document.getElementById('share-support-sub');
+  if (!el) return;
+
+  const isSecure = window.isSecureContext;
+  const hasShare = typeof navigator.share === 'function';
+  let fileShareWorks = false;
+  try {
+    if (hasShare && navigator.canShare) {
+      const probe = new File(['x'], 'probe.json', { type: 'application/json' });
+      fileShareWorks = navigator.canShare({ files: [probe] });
+    }
+  } catch { /* ignore */ }
+
+  if (fileShareWorks) {
+    el.textContent = 'Send to Drive, WhatsApp, Email, Files…';
+    el.style.color = '';
+  } else if (!isSecure) {
+    el.textContent = 'Share needs HTTPS — will download instead';
+    el.style.color = 'var(--text3)';
+  } else if (!hasShare) {
+    el.textContent = 'Share not supported here — will download instead';
+    el.style.color = 'var(--text3)';
+  } else {
+    el.textContent = 'File share unavailable here — will download instead';
+    el.style.color = 'var(--text3)';
+  }
 }
 
 // ─── TOAST ────────────────────────────────────────────────────
