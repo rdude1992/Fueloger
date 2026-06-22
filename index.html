@@ -384,17 +384,14 @@
       <button onclick="clearSampleData()" style="flex-shrink:0;background:var(--amber);color:#000;border:none;border-radius:8px;padding:7px 12px;font-size:12px;font-weight:800;cursor:pointer;white-space:nowrap">Clear&nbsp;Demo</button>
     </div>
 
-    <!-- PWA install banner — shown when browser install prompt is available -->
-    <div id="pwa-banner" style="display:none;background:linear-gradient(135deg,rgba(59,130,246,.14),rgba(59,130,246,.06));border:1.5px solid rgba(59,130,246,.3);border-radius:14px;padding:12px 14px;margin-bottom:16px;align-items:center;gap:10px">
-      <div style="font-size:22px;flex-shrink:0">📲</div>
+    <!-- Backup reminder — shown periodically based on last backup date -->
+    <div id="backup-banner" style="display:none;background:linear-gradient(135deg,rgba(59,130,246,.12),rgba(59,130,246,.06));border:1.5px solid rgba(59,130,246,.3);border-radius:14px;padding:12px 14px;margin-bottom:16px;align-items:center;gap:10px">
+      <div style="font-size:22px;flex-shrink:0">🛡️</div>
       <div style="flex:1;min-width:0">
-        <div style="font-size:13px;font-weight:700;color:var(--primary)">Install FuelLog</div>
-        <div style="font-size:11px;color:var(--text2);margin-top:2px;line-height:1.4">Add to home screen for the full app experience — works offline too.</div>
+        <div style="font-size:13px;font-weight:700;color:var(--primary)" id="backup-banner-title">Back up your data</div>
+        <div style="font-size:11px;color:var(--text2);margin-top:2px;line-height:1.4" id="backup-banner-sub">Your data only lives in this browser. Save a copy somewhere safe.</div>
       </div>
-      <div style="display:flex;flex-direction:column;gap:6px;align-items:flex-end;flex-shrink:0">
-        <button onclick="installPWA()" style="background:var(--primary);color:#fff;border:none;border-radius:8px;padding:7px 12px;font-size:12px;font-weight:800;cursor:pointer;white-space:nowrap">Install</button>
-        <button onclick="dismissInstallBanner()" style="background:none;border:none;color:var(--text3);font-size:11px;font-weight:600;cursor:pointer;padding:0;white-space:nowrap">Not now</button>
-      </div>
+      <button onclick="shareBackup()" style="flex-shrink:0;background:var(--primary);color:#fff;border:none;border-radius:8px;padding:7px 12px;font-size:12px;font-weight:800;cursor:pointer;white-space:nowrap">Back&nbsp;Up</button>
     </div>
 
     <div id="dash-odo"></div>
@@ -534,9 +531,19 @@
       </div>
     </div>
 
-    <div class="section-title" style="margin-top:20px;margin-bottom:8px">Data</div>
+    <div class="section-title" style="margin-top:20px;margin-bottom:8px">Backup &amp; Restore</div>
+    <div class="setting-row" style="cursor:default" id="backup-status-row">
+      <div>
+        <div class="setting-label">Last Backup</div>
+        <div class="setting-sub" id="last-backup-sub">Never backed up</div>
+      </div>
+    </div>
+    <div class="setting-row" onclick="shareBackup()">
+      <div><div class="setting-label">Share / Save Backup</div><div class="setting-sub">Send to Drive, WhatsApp, Email, Files…</div></div>
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="setting-arrow"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg>
+    </div>
     <div class="setting-row" onclick="exportData('json')">
-      <div><div class="setting-label">Export Backup (JSON)</div><div class="setting-sub">Full data backup</div></div>
+      <div><div class="setting-label">Download Backup (JSON)</div><div class="setting-sub">Save file to your device</div></div>
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="setting-arrow"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>
     </div>
     <div class="setting-row" onclick="exportData('csv')">
@@ -549,22 +556,9 @@
     </div>
     <input type="file" id="import-file" accept=".json" style="display:none" onchange="importData(this)">
 
-    <div id="pwa-install-section" style="display:none">
-      <div class="section-title" style="margin-top:20px;margin-bottom:8px">App</div>
-      <div class="setting-row" id="pwa-install-row" onclick="installPWA()" style="display:none">
-        <div>
-          <div class="setting-label">Install App</div>
-          <div class="setting-sub">Add FuelLog to your home screen</div>
-        </div>
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="setting-arrow"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>
-      </div>
-      <div class="setting-row" id="pwa-installed-row" onclick="" style="display:none;cursor:default">
-        <div>
-          <div class="setting-label">App Installed</div>
-          <div class="setting-sub">FuelLog is on your home screen</div>
-        </div>
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="color:var(--green)"><polyline points="20 6 9 17 4 12"/></svg>
-      </div>
+    <div class="setting-row" style="cursor:default;flex-direction:column;align-items:stretch;gap:10px">
+      <div class="setting-label">Backup Reminder</div>
+      <div style="display:flex;gap:6px" id="backup-freq-row"></div>
     </div>
 
     <div class="section-title" style="margin-top:20px;margin-bottom:8px">About</div>
@@ -972,6 +966,7 @@ function showPage(id) {
   if (id==='trips') renderTripList();
   if (id==='expenses') renderExpenseList();
   if (id==='vehicles') renderVehiclesList();
+  if (id==='settings') { renderBackupFreqRow(); updateBackupSettingsRow(); }
 }
 
 // ─── MODALS ───────────────────────────────────────────────────
@@ -1588,6 +1583,7 @@ function updateSampleBanner() {
 // ─── DASHBOARD ────────────────────────────────────────────────
 function renderDashboard() {
   updateSampleBanner();
+  updateBackupBanner();
   document.getElementById('dash-date').textContent = new Date().toLocaleDateString('en-IN', { weekday:'long', day:'numeric', month:'long' });
 
   // ── Vehicle selector ──────────────────────────────────────────
@@ -2116,11 +2112,23 @@ function renderVehiclesList() {
 }
 
 // ─── EXPORT / IMPORT ─────────────────────────────────────────
+// ─── BACKUP & RESTORE ──────────────────────────────────────────
+function buildBackupPayload() {
+  return { vehicles, fuelEntries, tripEntries, expenseEntries, exportedAt: new Date().toISOString(), version: 2 };
+}
+
+function markBackupDone() {
+  DB.set('fl_last_backup', new Date().toISOString());
+  updateBackupBanner();
+  updateBackupSettingsRow();
+}
+
 function exportData(format) {
   if (format === 'json') {
-    const data = { vehicles, fuelEntries, tripEntries, expenseEntries, exportedAt: new Date().toISOString(), version: 2 };
+    const data = buildBackupPayload();
     download('fuellog-backup.json', JSON.stringify(data, null, 2), 'application/json');
-    toast('Backup exported!');
+    toast('Backup downloaded!');
+    markBackupDone();
   } else if (format === 'csv') {
     // Export fuel entries
     const rows = [['Type','Date','Vehicle','Category','Amount','Detail1','Detail2','Notes']];
@@ -2141,6 +2149,36 @@ function exportData(format) {
     download('fuellog-all.csv', csv, 'text/csv');
     toast('CSV exported!');
   }
+}
+
+// Share backup via native Share sheet — lets user pick Drive, WhatsApp, Email, Files, etc.
+// Falls back to a plain download if Web Share API (or file sharing) isn't supported.
+async function shareBackup() {
+  const data = buildBackupPayload();
+  const json = JSON.stringify(data, null, 2);
+  const filename = `fuellog-backup-${new Date().toISOString().split('T')[0]}.json`;
+
+  try {
+    const file = new File([json], filename, { type: 'application/json' });
+    if (navigator.canShare && navigator.canShare({ files: [file] })) {
+      await navigator.share({
+        files: [file],
+        title: 'FuelLog Backup',
+        text: `FuelLog backup — ${vehicles.length} vehicles, ${fuelEntries.length} fuel entries`
+      });
+      toast('Backup shared!');
+      markBackupDone();
+      return;
+    }
+  } catch (err) {
+    if (err?.name === 'AbortError') return; // user cancelled the share sheet — not an error
+    // fall through to download fallback below
+  }
+
+  // Fallback: device/browser doesn't support file sharing — just download
+  download(filename, json, 'application/json');
+  toast('Backup downloaded! Move it to Drive, email it, or save it somewhere safe.');
+  markBackupDone();
 }
 
 function download(name, data, type) {
@@ -2175,6 +2213,82 @@ function clearAllData() {
   if (!confirm('Delete ALL data permanently? This cannot be undone.')) return;
   vehicles=[]; fuelEntries=[]; tripEntries=[]; expenseEntries=[];
   save(); toast('All data cleared'); renderDashboard();
+}
+
+// ─── BACKUP REMINDER SYSTEM ────────────────────────────────────
+const BACKUP_FREQ_OPTIONS = [
+  { key:'3',  label:'3 Days' },
+  { key:'7',  label:'Weekly' },
+  { key:'14', label:'2 Weeks' },
+  { key:'30', label:'Monthly' },
+  { key:'off',label:'Off' },
+];
+
+function getBackupFreqDays() {
+  const saved = DB.get('fl_backup_freq', '7');
+  return saved; // '3' | '7' | '14' | '30' | 'off'
+}
+
+function setBackupFreq(key) {
+  DB.set('fl_backup_freq', key);
+  renderBackupFreqRow();
+  updateBackupBanner();
+  toast(key === 'off' ? 'Backup reminders turned off' : 'Reminder set');
+}
+
+function renderBackupFreqRow() {
+  const el = document.getElementById('backup-freq-row');
+  if (!el) return;
+  const current = getBackupFreqDays();
+  el.innerHTML = BACKUP_FREQ_OPTIONS.map(o =>
+    `<div class="filter-pill ${o.key===current?'active':''}" onclick="setBackupFreq('${o.key}')">${o.label}</div>`
+  ).join('');
+}
+
+function daysSinceLastBackup() {
+  const last = DB.get('fl_last_backup', null);
+  if (!last) return Infinity; // never backed up
+  return Math.floor((Date.now() - new Date(last)) / 86400000);
+}
+
+function updateBackupBanner() {
+  const banner = document.getElementById('backup-banner');
+  if (!banner) return;
+
+  const hasData = vehicles.length > 0 || fuelEntries.length > 0 || tripEntries.length > 0 || expenseEntries.length > 0;
+  const isSeeded = DB.get('fl_seeded', false);
+  const freq = getBackupFreqDays();
+
+  if (!hasData || isSeeded || freq === 'off') { banner.style.display = 'none'; return; }
+
+  const days = daysSinceLastBackup();
+  const threshold = parseInt(freq, 10);
+
+  if (days >= threshold) {
+    const title = document.getElementById('backup-banner-title');
+    const sub = document.getElementById('backup-banner-sub');
+    if (days === Infinity) {
+      title.textContent = "You haven't backed up yet";
+      sub.textContent = 'Your data only lives in this browser. Save a copy somewhere safe.';
+    } else {
+      title.textContent = `Last backup was ${days} days ago`;
+      sub.textContent = 'A quick backup keeps your data safe if this browser is ever cleared.';
+    }
+    banner.style.display = 'flex';
+  } else {
+    banner.style.display = 'none';
+  }
+}
+
+function updateBackupSettingsRow() {
+  const sub = document.getElementById('last-backup-sub');
+  if (!sub) return;
+  const last = DB.get('fl_last_backup', null);
+  if (!last) { sub.textContent = 'Never backed up'; sub.style.color = 'var(--amber)'; return; }
+  const days = daysSinceLastBackup();
+  const dateStr = fmtDate(last.split('T')[0]);
+  sub.textContent = days === 0 ? `Today (${dateStr})` : days === 1 ? `Yesterday (${dateStr})` : `${days} days ago (${dateStr})`;
+  sub.style.color = days >= parseInt(getBackupFreqDays()||'999',10) ? 'var(--amber)' : 'var(--green)';
 }
 
 // ─── TOAST ────────────────────────────────────────────────────
@@ -2466,48 +2580,6 @@ renderDashboard();
 window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', e => {
   if (!DB.get('fl_theme', null)) applyTheme(!e.matches);
 });
-
-// ─── PWA INSTALL PROMPT ───────────────────────────────────────
-let deferredInstallPrompt = null;
-const BANNER_DISMISSED_KEY = 'fl_install_banner_dismissed';
-
-window.addEventListener('beforeinstallprompt', e => {
-  e.preventDefault();
-  deferredInstallPrompt = e;
-  // Show the install option in Settings
-  document.getElementById('pwa-install-section').style.display = '';
-  document.getElementById('pwa-install-row').style.display = '';
-  // Show the dashboard banner unless user dismissed it
-  if (!DB.get(BANNER_DISMISSED_KEY, false)) {
-    document.getElementById('pwa-banner').style.display = 'flex';
-  }
-});
-
-window.addEventListener('appinstalled', () => {
-  deferredInstallPrompt = null;
-  document.getElementById('pwa-banner').style.display = 'none';
-  document.getElementById('pwa-install-section').style.display = '';
-  document.getElementById('pwa-install-row').style.display = 'none';
-  document.getElementById('pwa-installed-row').style.display = '';
-});
-
-async function installPWA() {
-  if (!deferredInstallPrompt) return;
-  deferredInstallPrompt.prompt();
-  const { outcome } = await deferredInstallPrompt.userChoice;
-  if (outcome === 'accepted') {
-    deferredInstallPrompt = null;
-    document.getElementById('pwa-banner').style.display = 'none';
-    document.getElementById('pwa-install-row').style.display = 'none';
-    document.getElementById('pwa-installed-row').style.display = '';
-    toast('FuelLog installed!');
-  }
-}
-
-function dismissInstallBanner() {
-  document.getElementById('pwa-banner').style.display = 'none';
-  DB.set(BANNER_DISMISSED_KEY, true);
-}
 
 // ─── SERVICE WORKER + UPDATE HANDLING ────────────────────────
 if ('serviceWorker' in navigator) {
