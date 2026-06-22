@@ -52,6 +52,6 @@
       "url": "/?action=fuel",
       "icons": [{ "src": "icon-192.png", "sizes": "192x192" }]
     }
-  ]
-  "id": "FUELOG",
+  ],
+  "id": "FUELOG"
 }
