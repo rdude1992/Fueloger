@@ -274,6 +274,27 @@
   .odo-val { font-size: 40px; font-weight: 800; letter-spacing: -2px; font-variant-numeric: tabular-nums; background: linear-gradient(135deg, #fff, #94A3B8); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; }
   .odo-unit { font-size: 14px; color: var(--text3); margin-top: 4px; }
 
+  /* ACTIVE TRIP CARD */
+  @keyframes pulseDot { 0%,100% { opacity: 1; transform: scale(1); } 50% { opacity: .4; transform: scale(.8); } }
+  .active-trip-card { background: linear-gradient(135deg, rgba(16,185,129,.14), rgba(16,185,129,.04)); border: 1.5px solid rgba(16,185,129,.35); border-radius: 16px; padding: 16px; margin-bottom: 20px; position: relative; overflow: hidden; }
+  .active-trip-card::before { content: ''; position: absolute; top: 0; left: 0; right: 0; height: 1px; background: linear-gradient(90deg, transparent, rgba(16,185,129,.5), transparent); }
+  .active-trip-header { display: flex; align-items: center; gap: 8px; margin-bottom: 12px; }
+  .active-trip-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--green); flex-shrink: 0; animation: pulseDot 1.6s ease-in-out infinite; }
+  .active-trip-label { font-size: 11px; font-weight: 700; color: var(--green); text-transform: uppercase; letter-spacing: .6px; flex: 1; }
+  .active-trip-elapsed { font-size: 11px; color: var(--text2); font-variant-numeric: tabular-nums; }
+  .active-trip-body { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+  .active-trip-info { flex: 1; min-width: 0; }
+  .active-trip-vehicle { font-size: 15px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .active-trip-meta { font-size: 12px; color: var(--text2); margin-top: 2px; }
+  .active-trip-purpose { display: inline-flex; align-items: center; padding: 2px 8px; border-radius: 6px; font-size: 10px; font-weight: 700; background: rgba(16,185,129,.15); color: var(--green); text-transform: uppercase; letter-spacing: .3px; margin-top: 6px; }
+  .active-trip-end-btn { flex-shrink: 0; background: var(--green); color: #fff; border: none; border-radius: 12px; padding: 10px 18px; font-size: 13px; font-weight: 800; cursor: pointer; transition: opacity .15s, transform .1s; white-space: nowrap; }
+  .active-trip-end-btn:active { opacity: .85; transform: scale(.97); }
+
+  /* START TRIP BUTTON (in trip modal) */
+  .start-trip-btn { width: 100%; display: flex; align-items: center; justify-content: center; gap: 8px; padding: 12px; border-radius: 12px; border: 1.5px dashed var(--green); background: rgba(16,185,129,.06); color: var(--green); font-size: 14px; font-weight: 700; cursor: pointer; margin-bottom: 14px; transition: background .2s; }
+  .start-trip-btn:active { background: rgba(16,185,129,.14); }
+  .start-trip-btn svg { width: 18px; height: 18px; flex-shrink: 0; }
+
   /* FILTER BAR */
   .filter-bar { display: flex; gap: 6px; overflow-x: auto; padding-bottom: 4px; margin-bottom: 16px; scrollbar-width: none; }
   .filter-bar::-webkit-scrollbar { display: none; }
@@ -281,7 +302,7 @@
   .filter-pill.active { background: rgba(59,130,246,.15); color: var(--primary); border-color: var(--primary); }
 
   /* TOAST */
-  #toast { position: fixed; top: 20px; left: 50%; transform: translateX(-50%) translateY(-80px); background: var(--bg3); border: 1px solid var(--border); border-radius: 12px; padding: 12px 20px; font-size: 14px; font-weight: 600; z-index: 999; transition: transform .3s cubic-bezier(.4,0,.2,1); white-space: nowrap; box-shadow: 0 8px 32px rgba(0,0,0,.4); }
+  #toast { position: fixed; top: 20px; left: 50%; transform: translateX(-50%) translateY(-80px); background: var(--bg3); border: 1px solid var(--border); border-radius: 12px; padding: 12px 20px; font-size: 14px; font-weight: 600; z-index: 999; transition: transform .3s cubic-bezier(.4,0,.2,1); white-space: normal; max-width: 88vw; text-align: center; box-shadow: 0 8px 32px rgba(0,0,0,.4); }
   #toast.show { transform: translateX(-50%) translateY(0); }
 
   /* SETTINGS ROWS */
@@ -384,18 +405,18 @@
       <button onclick="clearSampleData()" style="flex-shrink:0;background:var(--amber);color:#000;border:none;border-radius:8px;padding:7px 12px;font-size:12px;font-weight:800;cursor:pointer;white-space:nowrap">Clear&nbsp;Demo</button>
     </div>
 
-    <!-- PWA install banner — shown when browser install prompt is available -->
-    <div id="pwa-banner" style="display:none;background:linear-gradient(135deg,rgba(59,130,246,.14),rgba(59,130,246,.06));border:1.5px solid rgba(59,130,246,.3);border-radius:14px;padding:12px 14px;margin-bottom:16px;align-items:center;gap:10px">
-      <div style="font-size:22px;flex-shrink:0">📲</div>
+    <!-- Backup reminder — shown periodically based on last backup date -->
+    <div id="backup-banner" style="display:none;background:linear-gradient(135deg,rgba(59,130,246,.12),rgba(59,130,246,.06));border:1.5px solid rgba(59,130,246,.3);border-radius:14px;padding:12px 14px;margin-bottom:16px;align-items:center;gap:10px">
+      <div style="font-size:22px;flex-shrink:0">🛡️</div>
       <div style="flex:1;min-width:0">
-        <div style="font-size:13px;font-weight:700;color:var(--primary)">Install FuelLog</div>
-        <div style="font-size:11px;color:var(--text2);margin-top:2px;line-height:1.4">Add to home screen for the full app experience — works offline too.</div>
+        <div style="font-size:13px;font-weight:700;color:var(--primary)" id="backup-banner-title">Back up your data</div>
+        <div style="font-size:11px;color:var(--text2);margin-top:2px;line-height:1.4" id="backup-banner-sub">Your data only lives in this browser. Save a copy somewhere safe.</div>
       </div>
-      <div style="display:flex;flex-direction:column;gap:6px;align-items:flex-end;flex-shrink:0">
-        <button onclick="installPWA()" style="background:var(--primary);color:#fff;border:none;border-radius:8px;padding:7px 12px;font-size:12px;font-weight:800;cursor:pointer;white-space:nowrap">Install</button>
-        <button onclick="dismissInstallBanner()" style="background:none;border:none;color:var(--text3);font-size:11px;font-weight:600;cursor:pointer;padding:0;white-space:nowrap">Not now</button>
-      </div>
+      <button onclick="shareBackup()" style="flex-shrink:0;background:var(--primary);color:#fff;border:none;border-radius:8px;padding:7px 12px;font-size:12px;font-weight:800;cursor:pointer;white-space:nowrap">Back&nbsp;Up</button>
     </div>
+
+    <!-- Active/in-progress trip — shown only when a trip is running -->
+    <div id="active-trip-section"></div>
 
     <div id="dash-odo"></div>
 
@@ -534,9 +555,19 @@
       </div>
     </div>
 
-    <div class="section-title" style="margin-top:20px;margin-bottom:8px">Data</div>
+    <div class="section-title" style="margin-top:20px;margin-bottom:8px">Backup &amp; Restore</div>
+    <div class="setting-row" style="cursor:default" id="backup-status-row">
+      <div>
+        <div class="setting-label">Last Backup</div>
+        <div class="setting-sub" id="last-backup-sub">Never backed up</div>
+      </div>
+    </div>
+    <div class="setting-row" onclick="shareBackup()">
+      <div><div class="setting-label">Share / Save Backup</div><div class="setting-sub" id="share-support-sub">Send to Drive, WhatsApp, Email, Files…</div></div>
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="setting-arrow"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg>
+    </div>
     <div class="setting-row" onclick="exportData('json')">
-      <div><div class="setting-label">Export Backup (JSON)</div><div class="setting-sub">Full data backup</div></div>
+      <div><div class="setting-label">Download Backup (JSON)</div><div class="setting-sub">Save file to your device</div></div>
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="setting-arrow"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>
     </div>
     <div class="setting-row" onclick="exportData('csv')">
@@ -549,22 +580,9 @@
     </div>
     <input type="file" id="import-file" accept=".json" style="display:none" onchange="importData(this)">
 
-    <div id="pwa-install-section" style="display:none">
-      <div class="section-title" style="margin-top:20px;margin-bottom:8px">App</div>
-      <div class="setting-row" id="pwa-install-row" onclick="installPWA()" style="display:none">
-        <div>
-          <div class="setting-label">Install App</div>
-          <div class="setting-sub">Add FuelLog to your home screen</div>
-        </div>
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="setting-arrow"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>
-      </div>
-      <div class="setting-row" id="pwa-installed-row" onclick="" style="display:none;cursor:default">
-        <div>
-          <div class="setting-label">App Installed</div>
-          <div class="setting-sub">FuelLog is on your home screen</div>
-        </div>
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="color:var(--green)"><polyline points="20 6 9 17 4 12"/></svg>
-      </div>
+    <div class="setting-row" style="cursor:default;flex-direction:column;align-items:stretch;gap:10px">
+      <div class="setting-label">Backup Reminder</div>
+      <div style="display:flex;gap:6px" id="backup-freq-row"></div>
     </div>
 
     <div class="section-title" style="margin-top:20px;margin-bottom:8px">About</div>
@@ -713,9 +731,16 @@
     <div class="modal-header"><div class="modal-title" id="trip-modal-title">Trip Entry</div></div>
     <div class="modal-body">
       <input type="hidden" id="trip-edit-id">
+
+      <!-- Start Trip shortcut — only shown for new trip entries -->
+      <button class="start-trip-btn" onclick="startLiveTrip()" id="start-trip-btn">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polygon points="10 8 16 12 10 16 10 8"/></svg>
+        Start Trip Now (track live)
+      </button>
+
       <div class="form-group">
         <label class="form-label">Vehicle</label>
-        <select class="form-input form-select" id="trip-vehicle"></select>
+        <select class="form-input form-select" id="trip-vehicle" onchange="prefillTripStartOdo()"></select>
       </div>
       <div class="form-group">
         <label class="form-label">Date</label>
@@ -726,7 +751,7 @@
           <label class="form-label">Start Odometer</label>
           <input type="number" class="form-input" id="trip-start" placeholder="0" oninput="calcTripDist()">
         </div>
-        <div class="form-group">
+        <div class="form-group" id="trip-end-group">
           <label class="form-label">End Odometer</label>
           <input type="number" class="form-input" id="trip-end" placeholder="0" oninput="calcTripDist()">
         </div>
@@ -752,7 +777,46 @@
     <div class="modal-footer">
       <div class="btn-row" style="margin-top:0">
         <button class="btn btn-ghost" onclick="closeModal('modal-trip')">Cancel</button>
-        <button class="btn btn-primary" onclick="saveTripEntry()">Save Entry</button>
+        <button class="btn btn-primary" id="trip-save-btn" onclick="saveTripEntry()">Save Entry</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- End Trip Modal — lightweight, only asks for end odometer -->
+<div class="modal-overlay" id="modal-end-trip">
+  <div class="modal">
+    <div class="modal-handle-area"><div class="modal-handle"></div></div>
+    <div class="modal-header"><div class="modal-title">End Trip</div></div>
+    <div class="modal-body">
+      <input type="hidden" id="end-trip-id">
+      <div id="end-trip-summary" style="background:var(--bg3);border-radius:12px;padding:12px 14px;margin-bottom:16px"></div>
+      <div class="form-group">
+        <label class="form-label">End Odometer (km)</label>
+        <input type="number" class="form-input" id="end-trip-odo" placeholder="0" oninput="calcEndTripDist()">
+      </div>
+      <div id="end-trip-dist-hint" style="margin-bottom:12px"></div>
+      <div class="form-group">
+        <label class="form-label">Purpose</label>
+        <select class="form-input form-select" id="end-trip-purpose">
+          <option value="personal">Personal</option>
+          <option value="office">Office / Commute</option>
+          <option value="business">Business</option>
+          <option value="other">Other</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Notes</label>
+        <textarea class="form-input" id="end-trip-notes" placeholder="Optional notes..."></textarea>
+      </div>
+      <div style="margin-bottom:4px">
+        <button class="btn btn-danger" onclick="cancelLiveTrip()" style="font-size:13px">Discard Trip</button>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <div class="btn-row" style="margin-top:0">
+        <button class="btn btn-ghost" onclick="closeModal('modal-end-trip')">Keep Running</button>
+        <button class="btn btn-primary" onclick="finishLiveTrip()">End Trip</button>
       </div>
     </div>
   </div>
@@ -972,6 +1036,7 @@ function showPage(id) {
   if (id==='trips') renderTripList();
   if (id==='expenses') renderExpenseList();
   if (id==='vehicles') renderVehiclesList();
+  if (id==='settings') { renderBackupFreqRow(); updateBackupSettingsRow(); }
 }
 
 // ─── MODALS ───────────────────────────────────────────────────
@@ -1270,29 +1335,49 @@ function openTripModal(id=null) {
   populateVehicleSelect('trip-vehicle');
   const m = document.getElementById('modal-trip');
   document.getElementById('trip-edit-id').value = id || '';
-  document.getElementById('trip-modal-title').textContent = id ? 'Edit Trip' : 'Trip Entry';
-  document.getElementById('trip-delete-btn').style.display = id ? 'block' : 'none';
   document.getElementById('trip-dist-hint').innerHTML = '';
+  document.getElementById('trip-end-group').style.display = '';
+  document.getElementById('trip-save-btn').textContent = 'Save Entry';
+
   if (id) {
     const e = tripEntries.find(x=>x.id===id);
+    document.getElementById('trip-modal-title').textContent = 'Edit Trip';
+    document.getElementById('trip-delete-btn').style.display = 'block';
+    document.getElementById('start-trip-btn').style.display = 'none';
     if (e) {
       document.getElementById('trip-vehicle').value = e.vehicleId;
       document.getElementById('trip-date').value = e.date;
       document.getElementById('trip-start').value = e.startOdo;
-      document.getElementById('trip-end').value = e.endOdo;
+      document.getElementById('trip-end').value = e.endOdo || '';
       document.getElementById('trip-purpose').value = e.purpose;
       document.getElementById('trip-notes').value = e.notes || '';
       calcTripDist();
     }
   } else {
+    document.getElementById('trip-modal-title').textContent = 'Trip Entry';
+    document.getElementById('trip-delete-btn').style.display = 'none';
+    document.getElementById('start-trip-btn').style.display = 'flex';
     document.getElementById('trip-date').value = today();
     ['trip-start','trip-end','trip-notes'].forEach(x=>document.getElementById(x).value='');
     document.getElementById('trip-purpose').value='personal';
     if (tripVehicleId) document.getElementById('trip-vehicle').value = tripVehicleId;
     else if (dashVehicleId) document.getElementById('trip-vehicle').value = dashVehicleId;
+    // Pre-fill start odometer with the selected vehicle's current reading for convenience
+    prefillTripStartOdo();
   }
   if (window.clearModalSwipeStyles) window.clearModalSwipeStyles(m.id);
   m.classList.add('open');
+}
+
+function prefillTripStartOdo() {
+  const isEditing = !!document.getElementById('trip-edit-id').value;
+  if (isEditing) return; // never override an existing trip's recorded values
+  const vid = document.getElementById('trip-vehicle').value;
+  const v = vehicles.find(x=>x.id===vid);
+  if (v) {
+    document.getElementById('trip-start').value = v.odo;
+    calcTripDist();
+  }
 }
 
 function calcTripDist() {
@@ -1317,6 +1402,7 @@ function saveTripEntry() {
     distance: Math.max(0, endOdo - startOdo),
     purpose: document.getElementById('trip-purpose').value,
     notes: document.getElementById('trip-notes').value.trim(),
+    inProgress: false,
     createdAt: new Date().toISOString()
   };
   const idx = tripEntries.findIndex(x=>x.id===id);
@@ -1337,6 +1423,122 @@ function deleteTripEntry() {
   save(); closeModal('modal-trip'); toast('Deleted');
   if (currentPage==='trips') renderTripList();
   if (currentPage==='dashboard') renderDashboard();
+}
+
+// ─── LIVE TRIP TRACKING ────────────────────────────────────────
+// A trip with inProgress:true has a startOdo + startedAt but no endOdo/distance yet.
+// Only one active trip is supported at a time (per the whole app, not per vehicle).
+
+function getActiveTrip() {
+  return tripEntries.find(x => x.inProgress === true) || null;
+}
+
+function startLiveTrip() {
+  const vid = document.getElementById('trip-vehicle').value;
+  if (!vid) { toast('Select a vehicle'); return; }
+  if (getActiveTrip()) { toast('A trip is already in progress'); return; }
+
+  const startOdo = parseFloat(document.getElementById('trip-start').value) || 0;
+  if (!startOdo) { toast('Enter a start odometer reading'); return; }
+
+  const entry = {
+    id: uid(),
+    vehicleId: vid,
+    date: document.getElementById('trip-date').value || today(),
+    startOdo,
+    endOdo: null,
+    distance: null,
+    purpose: document.getElementById('trip-purpose').value,
+    notes: document.getElementById('trip-notes').value.trim(),
+    inProgress: true,
+    startedAt: new Date().toISOString(),
+    createdAt: new Date().toISOString()
+  };
+  tripEntries.push(entry);
+  save();
+  closeModal('modal-trip');
+  toast('Trip started! Tap End Trip on the dashboard when you arrive.');
+  if (currentPage==='trips') renderTripList();
+  if (currentPage==='dashboard') renderDashboard();
+}
+
+function openEndTripModal() {
+  const trip = getActiveTrip();
+  if (!trip) return;
+  const v = vehicles.find(x=>x.id===trip.vehicleId);
+
+  document.getElementById('end-trip-id').value = trip.id;
+  document.getElementById('end-trip-odo').value = '';
+  document.getElementById('end-trip-purpose').value = trip.purpose || 'personal';
+  document.getElementById('end-trip-notes').value = trip.notes || '';
+  document.getElementById('end-trip-dist-hint').innerHTML = '';
+
+  const elapsed = formatElapsed(trip.startedAt);
+  document.getElementById('end-trip-summary').innerHTML = `
+    <div style="font-size:14px;font-weight:700">${vehicleEmoji(v?.type)} ${v?.name||'Vehicle'}</div>
+    <div style="font-size:12px;color:var(--text2);margin-top:4px">Started ${fmtDate(trip.date)} · Start odo ${fmt(trip.startOdo)} km</div>
+    <div style="font-size:12px;color:var(--green);margin-top:2px;font-weight:600">Running for ${elapsed}</div>
+  `;
+
+  const m = document.getElementById('modal-end-trip');
+  if (window.clearModalSwipeStyles) window.clearModalSwipeStyles(m.id);
+  m.classList.add('open');
+}
+
+function calcEndTripDist() {
+  const trip = getActiveTrip();
+  if (!trip) return;
+  const endOdo = parseFloat(document.getElementById('end-trip-odo').value);
+  const hint = document.getElementById('end-trip-dist-hint');
+  if (endOdo && endOdo > trip.startOdo) {
+    hint.innerHTML = `<div class="calc-badge" style="background:rgba(16,185,129,.15);color:var(--green)">${fmt(endOdo-trip.startOdo)} km travelled</div>`;
+  } else hint.innerHTML = '';
+}
+
+function finishLiveTrip() {
+  const id = document.getElementById('end-trip-id').value;
+  const trip = tripEntries.find(x=>x.id===id);
+  if (!trip) return;
+
+  const endOdo = parseFloat(document.getElementById('end-trip-odo').value) || 0;
+  if (!endOdo || endOdo <= trip.startOdo) { toast('Enter a valid end odometer reading'); return; }
+
+  trip.endOdo = endOdo;
+  trip.distance = endOdo - trip.startOdo;
+  trip.purpose = document.getElementById('end-trip-purpose').value;
+  trip.notes = document.getElementById('end-trip-notes').value.trim();
+  trip.inProgress = false;
+  delete trip.startedAt; // no longer needed once finished
+
+  const v = vehicles.find(x=>x.id===trip.vehicleId);
+  if (v && endOdo > v.odo) v.odo = endOdo;
+
+  save();
+  closeModal('modal-end-trip');
+  toast(`Trip ended — ${fmt(trip.distance)} km logged!`);
+  if (currentPage==='trips') renderTripList();
+  if (currentPage==='dashboard') renderDashboard();
+}
+
+function cancelLiveTrip() {
+  const id = document.getElementById('end-trip-id').value;
+  if (!confirm('Discard this trip? It will be deleted with no distance logged.')) return;
+  tripEntries = tripEntries.filter(x=>x.id!==id);
+  save();
+  closeModal('modal-end-trip');
+  toast('Trip discarded');
+  if (currentPage==='trips') renderTripList();
+  if (currentPage==='dashboard') renderDashboard();
+}
+
+function formatElapsed(startedAt) {
+  const ms = Date.now() - new Date(startedAt).getTime();
+  const mins = Math.floor(ms / 60000);
+  if (mins < 1) return 'just now';
+  if (mins < 60) return `${mins} min`;
+  const hrs = Math.floor(mins / 60);
+  const remMins = mins % 60;
+  return remMins > 0 ? `${hrs}h ${remMins}m` : `${hrs}h`;
 }
 
 // ─── HELPERS ─────────────────────────────────────────────────
@@ -1586,8 +1788,53 @@ function updateSampleBanner() {
 }
 
 // ─── DASHBOARD ────────────────────────────────────────────────
+// ─── ACTIVE TRIP CARD (DASHBOARD) ──────────────────────────────
+let activeTripTimerHandle = null;
+
+function renderActiveTripCard() {
+  const el = document.getElementById('active-trip-section');
+  if (!el) return;
+  const trip = getActiveTrip();
+
+  if (!trip) {
+    el.innerHTML = '';
+    if (activeTripTimerHandle) { clearInterval(activeTripTimerHandle); activeTripTimerHandle = null; }
+    return;
+  }
+
+  const v = vehicles.find(x=>x.id===trip.vehicleId);
+  el.innerHTML = `
+    <div class="active-trip-card">
+      <div class="active-trip-header">
+        <div class="active-trip-dot"></div>
+        <div class="active-trip-label">Trip In Progress</div>
+        <div class="active-trip-elapsed" id="active-trip-elapsed">${formatElapsed(trip.startedAt)}</div>
+      </div>
+      <div class="active-trip-body">
+        <div class="active-trip-info">
+          <div class="active-trip-vehicle">${vehicleEmoji(v?.type)} ${v?.name||'Vehicle'}</div>
+          <div class="active-trip-meta">Started at ${fmt(trip.startOdo)} km</div>
+          <div class="active-trip-purpose">${purposeLabel(trip.purpose)}</div>
+        </div>
+        <button class="active-trip-end-btn" onclick="openEndTripModal()">End Trip</button>
+      </div>
+    </div>`;
+
+  // Live-update the elapsed time every 30s without re-rendering the whole dashboard
+  if (activeTripTimerHandle) clearInterval(activeTripTimerHandle);
+  activeTripTimerHandle = setInterval(() => {
+    const elapsedEl = document.getElementById('active-trip-elapsed');
+    const stillActive = getActiveTrip();
+    if (!elapsedEl || !stillActive) { clearInterval(activeTripTimerHandle); activeTripTimerHandle = null; return; }
+    elapsedEl.textContent = formatElapsed(stillActive.startedAt);
+  }, 30000);
+}
+
+
 function renderDashboard() {
   updateSampleBanner();
+  updateBackupBanner();
+  renderActiveTripCard();
   document.getElementById('dash-date').textContent = new Date().toLocaleDateString('en-IN', { weekday:'long', day:'numeric', month:'long' });
 
   // ── Vehicle selector ──────────────────────────────────────────
@@ -2055,6 +2302,20 @@ function renderTripList() {
     const v = vehicles.find(x=>x.id===e.vehicleId);
     const isSel = selectedIds.has(e.id);
     const checkHtml = inSelect ? `<div class="select-check"><svg viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="3" width="13" height="13"><polyline points="20 6 9 17 4 12"/></svg></div>` : '';
+    if (e.inProgress) {
+      const clickAction = inSelect ? `toggleSelect('${e.id}')` : `openEndTripModal()`;
+      return `<div class="entry-card ${inSelect?'selectable':''} ${isSel?'selected-item':''}" data-id="${e.id}" onclick="${clickAction}" style="border:1px solid rgba(16,185,129,.3)">
+        ${checkHtml}
+        <div class="entry-dot trip" style="background:rgba(16,185,129,.15);color:var(--green)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="20" height="20"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg></div>
+        <div class="entry-info">
+          <div class="entry-name">${purposeLabel(e.purpose)} <span style="color:var(--green);font-size:11px;font-weight:700">● RUNNING</span></div>
+          <div class="entry-meta">${v?.name||'?'} · started ${fmtDate(e.date)}</div>
+        </div>
+        <div class="entry-amount">
+          <div class="entry-val" style="color:var(--green);font-size:12px">Tap to end</div>
+        </div>
+      </div>`;
+    }
     const clickAction = inSelect ? `toggleSelect('${e.id}')` : `openTripModal('${e.id}')`;
     return `<div class="entry-card ${inSelect?'selectable':''} ${isSel?'selected-item':''}" data-id="${e.id}" onclick="${clickAction}">
       ${checkHtml}
@@ -2116,11 +2377,23 @@ function renderVehiclesList() {
 }
 
 // ─── EXPORT / IMPORT ─────────────────────────────────────────
+// ─── BACKUP & RESTORE ──────────────────────────────────────────
+function buildBackupPayload() {
+  return { vehicles, fuelEntries, tripEntries, expenseEntries, exportedAt: new Date().toISOString(), version: 2 };
+}
+
+function markBackupDone() {
+  DB.set('fl_last_backup', new Date().toISOString());
+  updateBackupBanner();
+  updateBackupSettingsRow();
+}
+
 function exportData(format) {
   if (format === 'json') {
-    const data = { vehicles, fuelEntries, tripEntries, expenseEntries, exportedAt: new Date().toISOString(), version: 2 };
+    const data = buildBackupPayload();
     download('fuellog-backup.json', JSON.stringify(data, null, 2), 'application/json');
-    toast('Backup exported!');
+    toast('Backup downloaded!');
+    markBackupDone();
   } else if (format === 'csv') {
     // Export fuel entries
     const rows = [['Type','Date','Vehicle','Category','Amount','Detail1','Detail2','Notes']];
@@ -2135,12 +2408,68 @@ function exportData(format) {
     });
     tripEntries.forEach(e=>{
       const v = vehicles.find(x=>x.id===e.vehicleId);
-      rows.push(['Trip', e.date, v?.name||'', e.purpose, e.distance, `${e.startOdo}-${e.endOdo}km`, '', e.notes||'']);
+      if (e.inProgress) {
+        rows.push(['Trip', e.date, v?.name||'', e.purpose, 'In Progress', `start ${e.startOdo}km`, '', e.notes||'']);
+      } else {
+        rows.push(['Trip', e.date, v?.name||'', e.purpose, e.distance, `${e.startOdo}-${e.endOdo}km`, '', e.notes||'']);
+      }
     });
     const csv = rows.map(r=>r.map(x=>`"${String(x).replace(/"/g,'""')}"`).join(',')).join('\n');
     download('fuellog-all.csv', csv, 'text/csv');
     toast('CSV exported!');
   }
+}
+
+// Share backup via native Share sheet — lets user pick Drive, WhatsApp, Email, Files, etc.
+// Tries file-share first, falls back to text-share, falls back to plain download.
+// NOTE: picking "Save to Drive" / "Files" / "Save to device" from the share sheet
+// IS the file being saved — that's correct, expected behavior, not a bug. A true
+// "download" (no share sheet at all) only happens if navigator.share() never opens.
+async function shareBackup() {
+  const data = buildBackupPayload();
+  const json = JSON.stringify(data, null, 2);
+  const dateTag = new Date().toISOString().split('T')[0];
+  const filename = `fuellog-backup-${dateTag}.json`;
+  const summary = `FuelLog backup — ${vehicles.length} vehicles, ${fuelEntries.length} fuel entries, ${tripEntries.length} trips, ${expenseEntries.length} expenses (${dateTag})`;
+
+  const isSecure = window.isSecureContext;
+  const hasShare = typeof navigator.share === 'function';
+
+  if (!isSecure) {
+    toast('Share needs HTTPS — downloading instead');
+    download(filename, json, 'application/json');
+    markBackupDone();
+    return;
+  }
+  if (!hasShare) {
+    toast('Share not supported on this browser — downloading instead');
+    download(filename, json, 'application/json');
+    markBackupDone();
+    return;
+  }
+
+  // ── Attempt 1: native file share (Drive, WhatsApp, Files, etc.) ──
+  try {
+    const file = new File([json], filename, { type: 'application/json' });
+    const canShareFiles = navigator.canShare && navigator.canShare({ files: [file] });
+    if (canShareFiles) {
+      await navigator.share({ files: [file], title: 'FuelLog Backup', text: summary });
+      // If we reach here, the share sheet was opened and completed successfully.
+      toast('Shared!');
+      markBackupDone();
+      return;
+    } else {
+      toast('This browser can\'t attach files to share — downloading instead');
+    }
+  } catch (err) {
+    if (err?.name === 'AbortError') { toast('Share cancelled'); return; }
+    // Show the REAL error so we can see what's actually happening
+    toast(`Share failed: ${err?.name || 'Unknown'} — ${(err?.message||'').slice(0,60)}`, 5000);
+  }
+
+  // ── Fallback: plain download ──
+  download(filename, json, 'application/json');
+  markBackupDone();
 }
 
 function download(name, data, type) {
@@ -2177,11 +2506,125 @@ function clearAllData() {
   save(); toast('All data cleared'); renderDashboard();
 }
 
+// ─── BACKUP REMINDER SYSTEM ────────────────────────────────────
+const BACKUP_FREQ_OPTIONS = [
+  { key:'3',  label:'3 Days' },
+  { key:'7',  label:'Weekly' },
+  { key:'14', label:'2 Weeks' },
+  { key:'30', label:'Monthly' },
+  { key:'off',label:'Off' },
+];
+
+function getBackupFreqDays() {
+  const saved = DB.get('fl_backup_freq', '7');
+  return saved; // '3' | '7' | '14' | '30' | 'off'
+}
+
+function setBackupFreq(key) {
+  DB.set('fl_backup_freq', key);
+  renderBackupFreqRow();
+  updateBackupBanner();
+  toast(key === 'off' ? 'Backup reminders turned off' : 'Reminder set');
+}
+
+function renderBackupFreqRow() {
+  const el = document.getElementById('backup-freq-row');
+  if (!el) return;
+  const current = getBackupFreqDays();
+  el.innerHTML = BACKUP_FREQ_OPTIONS.map(o =>
+    `<div class="filter-pill ${o.key===current?'active':''}" onclick="setBackupFreq('${o.key}')">${o.label}</div>`
+  ).join('');
+}
+
+function daysSinceLastBackup() {
+  const last = DB.get('fl_last_backup', null);
+  if (!last) return Infinity; // never backed up
+  return Math.floor((Date.now() - new Date(last)) / 86400000);
+}
+
+function updateBackupBanner() {
+  const banner = document.getElementById('backup-banner');
+  if (!banner) return;
+
+  const hasData = vehicles.length > 0 || fuelEntries.length > 0 || tripEntries.length > 0 || expenseEntries.length > 0;
+  const isSeeded = DB.get('fl_seeded', false);
+  const freq = getBackupFreqDays();
+
+  if (!hasData || isSeeded || freq === 'off') { banner.style.display = 'none'; return; }
+
+  const days = daysSinceLastBackup();
+  const threshold = parseInt(freq, 10);
+
+  if (days >= threshold) {
+    const title = document.getElementById('backup-banner-title');
+    const sub = document.getElementById('backup-banner-sub');
+    if (days === Infinity) {
+      title.textContent = "You haven't backed up yet";
+      sub.textContent = 'Your data only lives in this browser. Save a copy somewhere safe.';
+    } else {
+      title.textContent = `Last backup was ${days} days ago`;
+      sub.textContent = 'A quick backup keeps your data safe if this browser is ever cleared.';
+    }
+    banner.style.display = 'flex';
+  } else {
+    banner.style.display = 'none';
+  }
+}
+
+function updateBackupSettingsRow() {
+  const sub = document.getElementById('last-backup-sub');
+  if (!sub) return;
+  const last = DB.get('fl_last_backup', null);
+  if (!last) {
+    sub.textContent = 'Never backed up';
+    sub.style.color = 'var(--amber)';
+    updateShareSupportRow();
+    return;
+  }
+  const days = daysSinceLastBackup();
+  const dateStr = fmtDate(last.split('T')[0]);
+  sub.textContent = days === 0 ? `Today (${dateStr})` : days === 1 ? `Yesterday (${dateStr})` : `${days} days ago (${dateStr})`;
+  sub.style.color = days >= parseInt(getBackupFreqDays()||'999',10) ? 'var(--amber)' : 'var(--green)';
+  updateShareSupportRow();
+}
+
+// Tells the user up front whether file-sharing will actually work on this device,
+// instead of silently falling back to download with no explanation.
+function updateShareSupportRow() {
+  const el = document.getElementById('share-support-sub');
+  if (!el) return;
+
+  const isSecure = window.isSecureContext;
+  const hasShare = typeof navigator.share === 'function';
+  let fileShareWorks = false;
+  try {
+    if (hasShare && navigator.canShare) {
+      const probe = new File(['x'], 'probe.json', { type: 'application/json' });
+      fileShareWorks = navigator.canShare({ files: [probe] });
+    }
+  } catch { /* ignore */ }
+
+  if (fileShareWorks) {
+    el.textContent = 'Send to Drive, WhatsApp, Email, Files…';
+    el.style.color = '';
+  } else if (!isSecure) {
+    el.textContent = 'Share needs HTTPS — will download instead';
+    el.style.color = 'var(--text3)';
+  } else if (!hasShare) {
+    el.textContent = 'Share not supported here — will download instead';
+    el.style.color = 'var(--text3)';
+  } else {
+    el.textContent = 'File share unavailable here — will download instead';
+    el.style.color = 'var(--text3)';
+  }
+}
+
 // ─── TOAST ────────────────────────────────────────────────────
-function toast(msg) {
+function toast(msg, duration=2500) {
   const t = document.getElementById('toast');
   t.textContent = msg; t.classList.add('show');
-  setTimeout(()=>t.classList.remove('show'), 2500);
+  clearTimeout(t._hideTimer);
+  t._hideTimer = setTimeout(()=>t.classList.remove('show'), duration);
 }
 
 // ─── SEED DATA (first launch) ─────────────────────────────────
@@ -2466,48 +2909,6 @@ renderDashboard();
 window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', e => {
   if (!DB.get('fl_theme', null)) applyTheme(!e.matches);
 });
-
-// ─── PWA INSTALL PROMPT ───────────────────────────────────────
-let deferredInstallPrompt = null;
-const BANNER_DISMISSED_KEY = 'fl_install_banner_dismissed';
-
-window.addEventListener('beforeinstallprompt', e => {
-  e.preventDefault();
-  deferredInstallPrompt = e;
-  // Show the install option in Settings
-  document.getElementById('pwa-install-section').style.display = '';
-  document.getElementById('pwa-install-row').style.display = '';
-  // Show the dashboard banner unless user dismissed it
-  if (!DB.get(BANNER_DISMISSED_KEY, false)) {
-    document.getElementById('pwa-banner').style.display = 'flex';
-  }
-});
-
-window.addEventListener('appinstalled', () => {
-  deferredInstallPrompt = null;
-  document.getElementById('pwa-banner').style.display = 'none';
-  document.getElementById('pwa-install-section').style.display = '';
-  document.getElementById('pwa-install-row').style.display = 'none';
-  document.getElementById('pwa-installed-row').style.display = '';
-});
-
-async function installPWA() {
-  if (!deferredInstallPrompt) return;
-  deferredInstallPrompt.prompt();
-  const { outcome } = await deferredInstallPrompt.userChoice;
-  if (outcome === 'accepted') {
-    deferredInstallPrompt = null;
-    document.getElementById('pwa-banner').style.display = 'none';
-    document.getElementById('pwa-install-row').style.display = 'none';
-    document.getElementById('pwa-installed-row').style.display = '';
-    toast('FuelLog installed!');
-  }
-}
-
-function dismissInstallBanner() {
-  document.getElementById('pwa-banner').style.display = 'none';
-  DB.set(BANNER_DISMISSED_KEY, true);
-}
 
 // ─── SERVICE WORKER + UPDATE HANDLING ────────────────────────
 if ('serviceWorker' in navigator) {
