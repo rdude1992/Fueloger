@@ -826,6 +826,16 @@
         <input type="number" class="form-input" id="end-trip-odo" placeholder="0" oninput="calcEndTripDist()">
       </div>
       <div id="end-trip-dist-hint" style="margin-bottom:12px"></div>
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">Source (optional)</label>
+          <input type="text" class="form-input" id="end-trip-source" placeholder="Churchgate, Bandra…" list="source-suggestions" autocomplete="off">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Destination (optional)</label>
+          <input type="text" class="form-input" id="end-trip-destination" placeholder="Andheri, Pune…" list="dest-suggestions" autocomplete="off">
+        </div>
+      </div>
       <div class="form-group">
         <label class="form-label">Purpose</label>
         <select class="form-input form-select" id="end-trip-purpose">
@@ -1026,12 +1036,27 @@
         </div>
         <div class="form-row">
           <div class="form-group">
+            <label class="form-label">Rate (₹/L)</label>
+            <input type="number" class="form-input" id="scan-rate" placeholder="0.00" step="0.01">
+          </div>
+          <div class="form-group">
             <label class="form-label">Litres</label>
             <input type="number" class="form-input" id="scan-litres" placeholder="0.00" step="0.01">
           </div>
+        </div>
+        <div class="form-row">
           <div class="form-group">
             <label class="form-label">Station</label>
             <input type="text" class="form-input" id="scan-station" placeholder="HP, BPCL…">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Fuel Type</label>
+            <select class="form-input form-select" id="scan-fueltype">
+              <option value="">Auto-detected</option>
+              <option value="petrol">Petrol</option>
+              <option value="diesel">Diesel</option>
+              <option value="cng">CNG</option>
+            </select>
           </div>
         </div>
         <div class="form-group">
@@ -1674,6 +1699,8 @@ function finishLiveTrip() {
 
   trip.endOdo = endOdo;
   trip.distance = endOdo - trip.startOdo;
+  trip.source = document.getElementById('end-trip-source').value.trim();
+  trip.destination = document.getElementById('end-trip-destination').value.trim();
   trip.purpose = document.getElementById('end-trip-purpose').value;
   trip.notes = document.getElementById('end-trip-notes').value.trim();
   trip.inProgress = false;
@@ -2917,11 +2944,26 @@ function seedData() {
     seedFuelIds.push(id2);
   }
 
-  // Trips
+  // Trips (with realistic source/destination)
+  const tripRoutes = [
+    { source:'Churchgate', destination:'Bandra West' },
+    { source:'Andheri East', destination:'BKC' },
+    { source:'Powai', destination:'Nerul' },
+    { source:'Vashi', destination:'Kharghar' },
+    { source:'Pune', destination:'Lonavala' },
+    { source:'Thane', destination:'Kalyan' },
+  ];
   for (let w=0; w<12; w++) {
     const d = new Date(now); d.setDate(d.getDate()-w*7);
+    const route = tripRoutes[w % tripRoutes.length];
     const id = uid();
-    tripEntries.push({ id, vehicleId:vid, date:d.toISOString().split('T')[0], startOdo:44000+w*120, endOdo:44000+w*120+45, distance:45, purpose:['personal','office','office','business'][w%4], notes:'', createdAt:d.toISOString() });
+    tripEntries.push({
+      id, vehicleId:vid, date:d.toISOString().split('T')[0],
+      startOdo:44000+w*120, endOdo:44000+w*120+45, distance:45,
+      purpose:['personal','office','office','business'][w%4],
+      source: route.source, destination: route.destination,
+      notes:'', createdAt:d.toISOString()
+    });
     seedTripIds.push(id);
   }
 
@@ -3342,6 +3384,7 @@ async function processReceipt() {
     // Populate review panel
     document.getElementById('scan-date').value = extracted.date || '';
     document.getElementById('scan-amount').value = extracted.amount || '';
+    document.getElementById('scan-rate').value = extracted.rate || '';
     document.getElementById('scan-litres').value = extracted.litres || '';
     document.getElementById('scan-station').value = extracted.station || '';
     document.getElementById('scan-fueltype').value = extracted.fuelType || '';
@@ -3382,7 +3425,7 @@ async function processReceipt() {
 
 // Regex field extraction
 function extractReceiptFields(text) {
-  const result = { date: '', amount: '', litres: '', station: '', fuelType: '' };
+  const result = { date: '', amount: '', rate: '', litres: '', station: '', fuelType: '' };
 
   // Date: DD/MM/YYYY, DD-MM-YYYY, DD.MM.YYYY, YYYY-MM-DD
   const dateRegexes = [
@@ -3411,6 +3454,23 @@ function extractReceiptFields(text) {
   const amountRegex = /(?:₹|Rs\.?|INR|Total|TOTAL)\s*:?\s*(\d[\d,]*\.?\d{0,2})/i;
   const am = amountRegex.exec(text);
   if (am) result.amount = parseFloat(am[1].replace(/,/g, ''));
+
+  // Rate (₹/L): patterns like "₹94.50/L", "94.5/litre", "Rate: 95"
+  const rateRegex = /(?:Rate|Price|₹\s*)(?:per\s*(?:L|litre))?\s*:?\s*(?:₹\s*)?(\d[\d,]*\.?\d{0,2})/i;
+  const rm = rateRegex.exec(text);
+  if (rm) {
+    const val = parseFloat(rm[1].replace(/,/g, ''));
+    if (val > 0 && val < 500) result.rate = val;
+  }
+  // Fallback: look for standalone price-per-litre pattern
+  if (!result.rate) {
+    const fallback = /(\d[\d,]*\.?\d{1,2})\s*\/\s*L/i;
+    const fm = fallback.exec(text);
+    if (fm) {
+      const val = parseFloat(fm[1].replace(/,/g, ''));
+      if (val > 0 && val < 500) result.rate = val;
+    }
+  }
 
   // Litres: number followed by L/Ltr/Litre
   const litresRegex = /(\d+\.?\d*)\s*(?:L|Ltrs?|Litres?|Lt)/i;
@@ -3444,6 +3504,7 @@ function applyScanToFuel() {
   const date = document.getElementById('scan-date').value;
   const amount = parseFloat(document.getElementById('scan-amount').value);
   const litres = parseFloat(document.getElementById('scan-litres').value);
+  const rate = parseFloat(document.getElementById('scan-rate').value);
   const station = document.getElementById('scan-station').value.trim();
   const fuelType = document.getElementById('scan-fueltype').value;
   const fullTank = document.getElementById('scan-fulltank').checked;
@@ -3452,11 +3513,11 @@ function applyScanToFuel() {
   if (amount) {
     document.getElementById('fuel-cost').value = amount;
     if (litres && amount) {
-      // If litres is also known, calculate price per litre automatically
       document.getElementById('fuel-litres').value = litres;
       calcFuelPrice();
     }
   }
+  if (rate && rate > 0) document.getElementById('fuel-rate').value = rate;
   if (station) document.getElementById('fuel-station').value = station;
   document.getElementById('fuel-fulltank').checked = fullTank;
 

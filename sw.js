@@ -1,6 +1,6 @@
 // FuelLog Service Worker — network-first for HTML, cache-first for assets
 // Bump CACHE_VERSION on every deploy to trigger update flow
-const CACHE_VERSION = 'fuellog-v8';
+const CACHE_VERSION = 'fuellog-v9';
 const STATIC_CACHE  = `${CACHE_VERSION}-static`;
 
 // Relative paths — works whether deployed at root or under a sub-path
@@ -12,7 +12,8 @@ const STATIC_ASSETS = [
   './icon-192.png',
   './icon-512.png',
   './icon-maskable-192.png',
-  './icon-maskable-512.png'
+  './icon-maskable-512.png',
+  './receipt-worker.js'
 ];
 
 // Offline OCR assets — cached on first use so receipt scanning works offline
