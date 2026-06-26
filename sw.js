@@ -1,6 +1,6 @@
 // FuelLog Service Worker — network-first for HTML, cache-first for assets
 // Bump CACHE_VERSION on every deploy to trigger update flow
-const CACHE_VERSION = 'fuellog-v7';
+const CACHE_VERSION = 'fuellog-v8';
 const STATIC_CACHE  = `${CACHE_VERSION}-static`;
 
 const STATIC_ASSETS = [
