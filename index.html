@@ -488,7 +488,14 @@
       <div class="filter-pill" data-filter="personal" onclick="setTripFilter(this,'personal')">Personal</div>
       <div class="filter-pill" data-filter="office" onclick="setTripFilter(this,'office')">Office</div>
       <div class="filter-pill" data-filter="business" onclick="setTripFilter(this,'business')">Business</div>
+      <div class="filter-pill" data-filter="other" onclick="setTripFilter(this,'other')">Other</div>
     </div>
+
+    <div class="breakdown-card">
+      <div class="chart-title">Distance by Purpose</div>
+      <div class="breakdown-list" id="trip-purpose-breakdown"></div>
+    </div>
+
     <div class="entry-list" id="trips-list"></div>
     <div style="height:8px"></div>
   </div>
@@ -711,6 +718,12 @@
         <label class="form-label">Notes</label>
         <textarea class="form-input" id="fuel-notes" placeholder="Optional notes..."></textarea>
       </div>
+      <div style="margin-bottom:12px">
+        <button class="start-trip-btn" onclick="openScanModal()" style="border-color:var(--primary);background:rgba(59,130,246,.06);color:var(--primary)">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
+          Scan Receipt 📷
+        </button>
+      </div>
       <div id="fuel-delete-btn" style="display:none;margin-bottom:4px">
         <button class="btn btn-danger" onclick="deleteFuelEntry()">Delete Entry</button>
       </div>
@@ -746,6 +759,19 @@
         <label class="form-label">Date</label>
         <input type="date" class="form-input" id="trip-date">
       </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">Source (optional)</label>
+          <input type="text" class="form-input" id="trip-source" placeholder="Churchgate, Bandra…" list="source-suggestions" autocomplete="off">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Destination (optional)</label>
+          <input type="text" class="form-input" id="trip-destination" placeholder="Andheri, Pune…" list="dest-suggestions" autocomplete="off">
+        </div>
+      </div>
+      <!-- Datalists for auto-suggest -->
+      <datalist id="source-suggestions"></datalist>
+      <datalist id="dest-suggestions"></datalist>
       <div class="form-row">
         <div class="form-group">
           <label class="form-label">Start Odometer</label>
@@ -929,7 +955,101 @@
   </div>
 </div>
 
-<!-- Scan Bill Modal -->
+<!-- Scan Receipt Modal -->
+<div class="modal-overlay" id="modal-scan">
+  <div class="modal">
+    <div class="modal-handle-area"><div class="modal-handle"></div></div>
+    <div class="modal-header"><div class="modal-title">Scan Receipt 📷</div></div>
+    <div class="modal-body">
+      <!-- OCR download banner -->
+      <div id="scan-dl-banner" style="display:none;background:linear-gradient(135deg,rgba(59,130,246,.12),rgba(59,130,246,.06));border:1.5px solid rgba(59,130,246,.3);border-radius:12px;padding:12px 14px;margin-bottom:14px;align-items:center;gap:10px">
+        <div style="font-size:20px;flex-shrink:0">⬇️</div>
+        <div style="flex:1;min-width:0">
+          <div style="font-size:13px;font-weight:700;color:var(--primary)" id="scan-dl-title">Downloading OCR engine…</div>
+          <div style="font-size:11px;color:var(--text2);margin-top:2px" id="scan-dl-sub">~8MB · One-time download for offline scanning</div>
+        </div>
+        <div id="scan-dl-spinner" style="width:20px;height:20px;border:2px solid rgba(59,130,246,.3);border-top-color:var(--primary);border-radius:50%;animation:spin .7s linear infinite;flex-shrink:0"></div>
+      </div>
+
+      <!-- Image preview area -->
+      <div id="scan-preview-area" style="background:var(--bg3);border-radius:12px;overflow:hidden;margin-bottom:14px;min-height:120px;display:flex;align-items:center;justify-content:center;position:relative">
+        <canvas id="scan-preview" style="display:none;width:100%;height:auto;max-height:280px;object-fit:contain"></canvas>
+        <div id="scan-placeholder" style="text-align:center;padding:24px">
+          <div style="font-size:36px;margin-bottom:8px">🧾</div>
+          <div style="font-size:13px;font-weight:600;color:var(--text2)">Tap below to select a receipt photo</div>
+        </div>
+        <!-- Progress overlay during processing -->
+        <div id="scan-progress-overlay" style="display:none;position:absolute;inset:0;background:rgba(0,0,0,.6);border-radius:12px;align-items:center;justify-content:center;flex-direction:column;gap:8px">
+          <div style="width:28px;height:28px;border:3px solid rgba(255,255,255,.3);border-top-color:#fff;border-radius:50%;animation:spin .7s linear infinite"></div>
+          <div style="font-size:13px;font-weight:600;color:#fff" id="scan-progress-text">Processing…</div>
+        </div>
+      </div>
+
+      <!-- Action buttons -->
+      <div style="display:flex;gap:8px;margin-bottom:14px">
+        <button class="btn btn-ghost" style="flex:1;display:flex;align-items:center;justify-content:center;gap:6px;padding:10px;font-size:13px" onclick="pickReceiptImage()">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
+          Select Photo
+        </button>
+        <button class="btn btn-primary" style="flex:1;display:flex;align-items:center;justify-content:center;gap:6px;padding:10px;font-size:13px" onclick="processReceipt()" id="scan-process-btn" disabled>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+          Read Receipt
+        </button>
+      </div>
+
+      <!-- Hidden file input -->
+      <input type="file" id="scan-file-input" accept="image/*" capture="environment" style="display:none" onchange="handleReceiptImage(this)">
+
+      <!-- Extracted fields review panel -->
+      <div id="scan-results" style="display:none;border-top:1px solid var(--border);padding-top:14px">
+        <div class="form-label" style="margin-bottom:10px">✅ Extracted Fields</div>
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label">Date</label>
+            <input type="date" class="form-input" id="scan-date">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Amount (₹)</label>
+            <input type="number" class="form-input" id="scan-amount" placeholder="0">
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label">Litres</label>
+            <input type="number" class="form-input" id="scan-litres" placeholder="0.00" step="0.01">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Station</label>
+            <input type="text" class="form-input" id="scan-station" placeholder="HP, BPCL…">
+          </div>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Fuel Type</label>
+          <select class="form-input form-select" id="scan-fueltype">
+            <option value="">Auto-detected</option>
+            <option value="petrol">Petrol</option>
+            <option value="diesel">Diesel</option>
+            <option value="cng">CNG</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label class="checkbox-row">
+            <input type="checkbox" id="scan-fulltank" checked>
+            <span class="checkbox-label">Full Tank</span>
+          </label>
+        </div>
+        <div id="scan-confidence" style="font-size:11px;color:var(--text3);margin-bottom:10px"></div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <div class="btn-row" style="margin-top:0">
+        <button class="btn btn-ghost" onclick="closeScanModal()">Cancel</button>
+        <button class="btn btn-primary" onclick="applyScanToFuel()" id="scan-apply-btn" disabled>Populate Fuel Entry</button>
+      </div>
+    </div>
+  </div>
+</div>
+
 <!-- Floating multi-select bar -->
 <div id="select-bar">
   <span id="select-bar-cancel" onclick="exitSelectMode()">Cancel</span>
@@ -1347,6 +1467,8 @@ function openTripModal(id=null) {
     if (e) {
       document.getElementById('trip-vehicle').value = e.vehicleId;
       document.getElementById('trip-date').value = e.date;
+      document.getElementById('trip-source').value = e.source || '';
+      document.getElementById('trip-destination').value = e.destination || '';
       document.getElementById('trip-start').value = e.startOdo;
       document.getElementById('trip-end').value = e.endOdo || '';
       document.getElementById('trip-purpose').value = e.purpose;
@@ -1358,7 +1480,7 @@ function openTripModal(id=null) {
     document.getElementById('trip-delete-btn').style.display = 'none';
     document.getElementById('start-trip-btn').style.display = 'flex';
     document.getElementById('trip-date').value = today();
-    ['trip-start','trip-end','trip-notes'].forEach(x=>document.getElementById(x).value='');
+    ['trip-source','trip-destination','trip-start','trip-end','trip-notes'].forEach(x=>document.getElementById(x).value='');
     document.getElementById('trip-purpose').value='personal';
     if (tripVehicleId) document.getElementById('trip-vehicle').value = tripVehicleId;
     else if (dashVehicleId) document.getElementById('trip-vehicle').value = dashVehicleId;
@@ -1371,12 +1493,33 @@ function openTripModal(id=null) {
 
 function prefillTripStartOdo() {
   const isEditing = !!document.getElementById('trip-edit-id').value;
-  if (isEditing) return; // never override an existing trip's recorded values
+  if (isEditing) { updateStartTripBtnState(); return; }
   const vid = document.getElementById('trip-vehicle').value;
   const v = vehicles.find(x=>x.id===vid);
   if (v) {
     document.getElementById('trip-start').value = v.odo;
     calcTripDist();
+  }
+  updateStartTripBtnState();
+}
+
+// Disable/warn the Start Trip button if the selected vehicle already has a trip running
+function updateStartTripBtnState() {
+  const btn = document.getElementById('start-trip-btn');
+  if (!btn || btn.style.display === 'none') return;
+  const vid = document.getElementById('trip-vehicle').value;
+  const running = getActiveTrip(vid);
+  if (running) {
+    const v = vehicles.find(x=>x.id===vid);
+    btn.disabled = true;
+    btn.style.opacity = '.5';
+    btn.style.cursor = 'default';
+    btn.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg> ${v?.name||'This vehicle'} already has a trip running`;
+  } else {
+    btn.disabled = false;
+    btn.style.opacity = '';
+    btn.style.cursor = 'pointer';
+    btn.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polygon points="10 8 16 12 10 16 10 8"/></svg> Start Trip Now (track live)`;
   }
 }
 
@@ -1395,9 +1538,12 @@ function saveTripEntry() {
   const startOdo = parseFloat(document.getElementById('trip-start').value) || 0;
   const endOdo = parseFloat(document.getElementById('trip-end').value) || 0;
   const id = document.getElementById('trip-edit-id').value || uid();
+  const source = document.getElementById('trip-source').value.trim();
+  const destination = document.getElementById('trip-destination').value.trim();
   const entry = {
     id, vehicleId: vid,
     date: document.getElementById('trip-date').value || today(),
+    source, destination,
     startOdo, endOdo,
     distance: Math.max(0, endOdo - startOdo),
     purpose: document.getElementById('trip-purpose').value,
@@ -1407,6 +1553,8 @@ function saveTripEntry() {
   };
   const idx = tripEntries.findIndex(x=>x.id===id);
   if (idx>=0) tripEntries[idx]=entry; else tripEntries.push(entry);
+  // Remember recent places for auto-suggest
+  rememberRecentPlaces(source, destination);
   const v = vehicles.find(x=>x.id===vid);
   if (v && endOdo > v.odo) { v.odo = endOdo; }
   save();
@@ -1427,16 +1575,25 @@ function deleteTripEntry() {
 
 // ─── LIVE TRIP TRACKING ────────────────────────────────────────
 // A trip with inProgress:true has a startOdo + startedAt but no endOdo/distance yet.
-// Only one active trip is supported at a time (per the whole app, not per vehicle).
+// Multiple trips can run simultaneously as long as each is on a DIFFERENT vehicle.
+// Only one active trip per vehicle is allowed (can't double-track the same car).
 
-function getActiveTrip() {
-  return tripEntries.find(x => x.inProgress === true) || null;
+function getActiveTrip(vehicleId) {
+  return tripEntries.find(x => x.inProgress === true && x.vehicleId === vehicleId) || null;
+}
+
+function getActiveTrips() {
+  return tripEntries.filter(x => x.inProgress === true);
 }
 
 function startLiveTrip() {
   const vid = document.getElementById('trip-vehicle').value;
   if (!vid) { toast('Select a vehicle'); return; }
-  if (getActiveTrip()) { toast('A trip is already in progress'); return; }
+  if (getActiveTrip(vid)) {
+    const v = vehicles.find(x=>x.id===vid);
+    toast(`${v?.name||'This vehicle'} already has a trip running`);
+    return;
+  }
 
   const startOdo = parseFloat(document.getElementById('trip-start').value) || 0;
   if (!startOdo) { toast('Enter a start odometer reading'); return; }
@@ -1462,8 +1619,8 @@ function startLiveTrip() {
   if (currentPage==='dashboard') renderDashboard();
 }
 
-function openEndTripModal() {
-  const trip = getActiveTrip();
+function openEndTripModal(tripId) {
+  const trip = tripId ? tripEntries.find(x=>x.id===tripId) : getActiveTrips()[0];
   if (!trip) return;
   const v = vehicles.find(x=>x.id===trip.vehicleId);
 
@@ -1486,7 +1643,8 @@ function openEndTripModal() {
 }
 
 function calcEndTripDist() {
-  const trip = getActiveTrip();
+  const id = document.getElementById('end-trip-id').value;
+  const trip = tripEntries.find(x=>x.id===id);
   if (!trip) return;
   const endOdo = parseFloat(document.getElementById('end-trip-odo').value);
   const hint = document.getElementById('end-trip-dist-hint');
@@ -1556,6 +1714,40 @@ function purposeLabel(p) {
   return { personal:'Personal', office:'Office', business:'Business', other:'Other' }[p] || p;
 }
 
+// Visual metadata for trip-purpose analytics (color + icon per category)
+const TRIP_PURPOSE_META = {
+  personal: { label:'Personal', color:'#3B82F6', icon:'🏠' },
+  office:   { label:'Office',   color:'#10B981', icon:'💼' },
+  business: { label:'Business', color:'#F59E0B', icon:'📈' },
+  other:    { label:'Other',    color:'#8B5CF6', icon:'📍' },
+};
+function purposeMeta(p) {
+  return TRIP_PURPOSE_META[p] || TRIP_PURPOSE_META.other;
+}
+
+// ─── RECENT PLACES (auto-suggest for source/destination) ──────
+function getRecentPlaces() {
+  return DB.get('fl_recent_places', []);
+}
+
+function rememberRecentPlaces(source, destination) {
+  if (!source && !destination) return;
+  let places = getRecentPlaces();
+  const newPlaces = [];
+  if (source && !places.includes(source)) newPlaces.push(source);
+  if (destination && !places.includes(destination)) newPlaces.push(destination);
+  if (!newPlaces.length) return;
+  places = [...newPlaces, ...places].slice(0, 50); // keep last 50
+  DB.set('fl_recent_places', places);
+  updateRecentPlacesDatalists();
+}
+
+function updateRecentPlacesDatalists() {
+  const places = getRecentPlaces();
+  const options = places.map(p => `<option value="${p.replace(/"/g,'"')}">`).join('');
+  document.getElementById('source-suggestions').innerHTML = options;
+  document.getElementById('dest-suggestions').innerHTML = options;
+}
 // ─── EXPENSE MODAL ────────────────────────────────────────────
 let selectedExpCat = 'toll';
 
@@ -1794,21 +1986,23 @@ let activeTripTimerHandle = null;
 function renderActiveTripCard() {
   const el = document.getElementById('active-trip-section');
   if (!el) return;
-  const trip = getActiveTrip();
+  const trips = getActiveTrips();
 
-  if (!trip) {
+  if (activeTripTimerHandle) { clearInterval(activeTripTimerHandle); activeTripTimerHandle = null; }
+
+  if (!trips.length) {
     el.innerHTML = '';
-    if (activeTripTimerHandle) { clearInterval(activeTripTimerHandle); activeTripTimerHandle = null; }
     return;
   }
 
-  const v = vehicles.find(x=>x.id===trip.vehicleId);
-  el.innerHTML = `
+  el.innerHTML = trips.map(trip => {
+    const v = vehicles.find(x=>x.id===trip.vehicleId);
+    return `
     <div class="active-trip-card">
       <div class="active-trip-header">
         <div class="active-trip-dot"></div>
         <div class="active-trip-label">Trip In Progress</div>
-        <div class="active-trip-elapsed" id="active-trip-elapsed">${formatElapsed(trip.startedAt)}</div>
+        <div class="active-trip-elapsed" data-trip-id="${trip.id}">${formatElapsed(trip.startedAt)}</div>
       </div>
       <div class="active-trip-body">
         <div class="active-trip-info">
@@ -1816,17 +2010,19 @@ function renderActiveTripCard() {
           <div class="active-trip-meta">Started at ${fmt(trip.startOdo)} km</div>
           <div class="active-trip-purpose">${purposeLabel(trip.purpose)}</div>
         </div>
-        <button class="active-trip-end-btn" onclick="openEndTripModal()">End Trip</button>
+        <button class="active-trip-end-btn" onclick="openEndTripModal('${trip.id}')">End Trip</button>
       </div>
     </div>`;
+  }).join('');
 
-  // Live-update the elapsed time every 30s without re-rendering the whole dashboard
-  if (activeTripTimerHandle) clearInterval(activeTripTimerHandle);
+  // Live-update every running trip's elapsed time every 30s
   activeTripTimerHandle = setInterval(() => {
-    const elapsedEl = document.getElementById('active-trip-elapsed');
-    const stillActive = getActiveTrip();
-    if (!elapsedEl || !stillActive) { clearInterval(activeTripTimerHandle); activeTripTimerHandle = null; return; }
-    elapsedEl.textContent = formatElapsed(stillActive.startedAt);
+    const stillRunning = getActiveTrips();
+    if (!stillRunning.length) { clearInterval(activeTripTimerHandle); activeTripTimerHandle = null; return; }
+    stillRunning.forEach(trip => {
+      const elEl = document.querySelector(`.active-trip-elapsed[data-trip-id="${trip.id}"]`);
+      if (elEl) elEl.textContent = formatElapsed(trip.startedAt);
+    });
   }, 30000);
 }
 
@@ -1978,6 +2174,18 @@ function renderDashboard() {
   if (m6spends.length>1) insights.push({ label:'6-Mo Avg Spend', val:`₹${fmt(m6spends.reduce((a,b)=>a+b,0)/m6spends.length)}`, sub:'per month', color:'var(--purple)' });
   if (worstMileage&&mileageVals.length>1) insights.push({ label:'Worst Mileage', val:`${worstMileage.toFixed(1)} km/l`, sub:'lowest recorded', color:'var(--red)' });
 
+  // Top trip purpose this month (Personal / Office / Business / Other)
+  const mTripsCompleted = mTrips.filter(x=>!x.inProgress && x.distance>0);
+  if (mTripsCompleted.length) {
+    const byPurpose = {};
+    mTripsCompleted.forEach(t => { const p=t.purpose||'other'; byPurpose[p]=(byPurpose[p]||0)+t.distance; });
+    const top = Object.entries(byPurpose).sort((a,b)=>b[1]-a[1])[0];
+    if (top) {
+      const meta = purposeMeta(top[0]);
+      insights.push({ label:'Top Trip Type', val:`${meta.icon} ${meta.label}`, sub:`${fmt(top[1])} km this month`, color:meta.color });
+    }
+  }
+
   document.getElementById('dash-insights').innerHTML = insights.map(i=>`
     <div class="insight-chip">
       <div class="insight-label">${i.label}</div>
@@ -2073,7 +2281,7 @@ function renderDashboard() {
       <div class="entry-card" onclick="openTripModal('${e.id}')">
         <div class="entry-dot trip"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="20" height="20"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg></div>
         <div class="entry-info">
-          <div class="entry-name">${purposeLabel(e.purpose)}</div>
+          <div class="entry-name">${purposeLabel(e.purpose)}${(e.source||e.destination)?' · '+(e.source||'?')+' → '+(e.destination||'?'):''}</div>
           <div class="entry-meta">${v?.name||'Unknown'} · ${fmtDate(e.date)}</div>
         </div>
         <div class="entry-amount">
@@ -2287,7 +2495,11 @@ function renderTripList() {
   vhtml += vehicles.map(v=>`<div class="vpill ${v.id===tripVehicleId?'active':''}" onclick="setTripVehicle('${v.id}')">${vehicleEmoji(v.type)} ${v.name}</div>`).join('');
   tv.innerHTML = vhtml;
 
-  let entries = tripVehicleId ? tripEntries.filter(x=>x.vehicleId===tripVehicleId) : tripEntries;
+  // Vehicle-scoped set used for the breakdown (always shows all purposes, ignores the purpose filter)
+  const vehicleScoped = tripVehicleId ? tripEntries.filter(x=>x.vehicleId===tripVehicleId) : tripEntries;
+  renderTripPurposeBreakdown(vehicleScoped);
+
+  let entries = vehicleScoped;
   if (tripFilter !== 'all') entries = entries.filter(x=>x.purpose===tripFilter);
   entries = [...entries].sort((a,b)=>b.date.localeCompare(a.date));
   document.getElementById('trips-count').textContent = `${entries.length} entr${entries.length===1?'y':'ies'}`;
@@ -2303,7 +2515,7 @@ function renderTripList() {
     const isSel = selectedIds.has(e.id);
     const checkHtml = inSelect ? `<div class="select-check"><svg viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="3" width="13" height="13"><polyline points="20 6 9 17 4 12"/></svg></div>` : '';
     if (e.inProgress) {
-      const clickAction = inSelect ? `toggleSelect('${e.id}')` : `openEndTripModal()`;
+      const clickAction = inSelect ? `toggleSelect('${e.id}')` : `openEndTripModal('${e.id}')`;
       return `<div class="entry-card ${inSelect?'selectable':''} ${isSel?'selected-item':''}" data-id="${e.id}" onclick="${clickAction}" style="border:1px solid rgba(16,185,129,.3)">
         ${checkHtml}
         <div class="entry-dot trip" style="background:rgba(16,185,129,.15);color:var(--green)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="20" height="20"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg></div>
@@ -2321,7 +2533,7 @@ function renderTripList() {
       ${checkHtml}
       <div class="entry-dot trip"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="20" height="20"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg></div>
       <div class="entry-info">
-        <div class="entry-name">${purposeLabel(e.purpose)}${e.notes?' · '+e.notes.slice(0,20):''}</div>
+        <div class="entry-name">${purposeLabel(e.purpose)}${(e.source||e.destination)?' · '+(e.source||'?')+' → '+(e.destination||'?'):''}</div>
         <div class="entry-meta">${v?.name||'?'} · ${fmtDate(e.date)}</div>
       </div>
       <div class="entry-amount">
@@ -2331,6 +2543,39 @@ function renderTripList() {
     </div>`;
   }).join('');
   if (inSelect) updateSelectBar();
+}
+
+// Breakdown of completed trip distance grouped by purpose (personal/office/business/other)
+function renderTripPurposeBreakdown(entries) {
+  const el = document.getElementById('trip-purpose-breakdown');
+  if (!el) return;
+
+  const completed = entries.filter(x => !x.inProgress && x.distance > 0);
+  if (!completed.length) {
+    el.innerHTML = '<div style="font-size:13px;color:var(--text3);text-align:center;padding:12px 0">No completed trips yet</div>';
+    return;
+  }
+
+  const purposeKeys = ['personal','office','business','other'];
+  const totals = purposeKeys.map(p => {
+    const trips = completed.filter(x => (x.purpose||'other') === p);
+    const dist = trips.reduce((a,x)=>a+x.distance, 0);
+    return { purpose:p, dist, count:trips.length, meta:purposeMeta(p) };
+  }).filter(x => x.dist > 0).sort((a,b)=>b.dist-a.dist);
+
+  const grandTotal = totals.reduce((a,x)=>a+x.dist, 0);
+  const maxDist = Math.max(...totals.map(x=>x.dist), 1);
+
+  el.innerHTML = totals.map(t => {
+    const pct = grandTotal > 0 ? Math.round((t.dist/grandTotal)*100) : 0;
+    return `
+    <div class="breakdown-row">
+      <div class="breakdown-dot" style="background:${t.meta.color}"></div>
+      <div class="breakdown-name">${t.meta.icon} ${t.meta.label} <span style="color:var(--text3)">· ${t.count} trip${t.count===1?'':'s'}</span></div>
+      <div class="breakdown-bar-wrap"><div class="breakdown-bar-fill" style="width:${Math.round((t.dist/maxDist)*100)}%;background:${t.meta.color}"></div></div>
+      <div class="breakdown-val" style="color:${t.meta.color}">${fmt(t.dist)} km <span style="color:var(--text3);font-weight:500">(${pct}%)</span></div>
+    </div>`;
+  }).join('');
 }
 
 function setTripVehicle(id) { tripVehicleId=id; renderTripList(); }
@@ -2408,10 +2653,11 @@ function exportData(format) {
     });
     tripEntries.forEach(e=>{
       const v = vehicles.find(x=>x.id===e.vehicleId);
+      const route = (e.source||e.destination) ? `"${e.source||''} → ${e.destination||''}"` : '';
       if (e.inProgress) {
-        rows.push(['Trip', e.date, v?.name||'', e.purpose, 'In Progress', `start ${e.startOdo}km`, '', e.notes||'']);
+        rows.push(['Trip', e.date, v?.name||'', e.purpose, 'In Progress', `start ${e.startOdo}km`, route, e.notes||'']);
       } else {
-        rows.push(['Trip', e.date, v?.name||'', e.purpose, e.distance, `${e.startOdo}-${e.endOdo}km`, '', e.notes||'']);
+        rows.push(['Trip', e.date, v?.name||'', e.purpose, e.distance, `${e.startOdo}-${e.endOdo}km`, route, e.notes||'']);
       }
     });
     const csv = rows.map(r=>r.map(x=>`"${String(x).replace(/"/g,'""')}"`).join(',')).join('\n');
@@ -2899,11 +3145,321 @@ function initTheme() {
   }, { passive: true });
 })();
 
+// ─── RECEIPT SCANNING & OCR ──────────────────────────────────
+let scanImageData = null;
+let scanJobId = uid();
+let scanResultData = null;
+let receiptDB = null;
+
+// IndexedDB for receipt storage
+function initReceiptDB() {
+  return new Promise((resolve, reject) => {
+    if (receiptDB) return resolve(receiptDB);
+    const req = indexedDB.open('FuelLogReceipts', 1);
+    req.onupgradeneeded = e => {
+      const db = e.target.result;
+      db.createObjectStore('receipts', { keyPath: 'id', autoIncrement: true });
+    };
+    req.onsuccess = e => { receiptDB = e.target.result; resolve(receiptDB); };
+    req.onerror = e => reject(e.target.error);
+  });
+}
+
+function saveReceiptToDB(data) {
+  return initReceiptDB().then(db => {
+    const tx = db.transaction('receipts', 'readwrite');
+    tx.objectStore('receipts').add(data);
+    return new Promise((resolve, reject) => {
+      tx.oncomplete = () => resolve();
+      tx.onerror = e => reject(e.target.error);
+    });
+  });
+}
+
+// OpenCV.js background download
+let openCvLoaded = false;
+function downloadOcrEngine() {
+  const banner = document.getElementById('scan-dl-banner');
+  if (!banner) return;
+  if (DB.get('fl_ocr_downloaded', false)) { openCvLoaded = true; return; }
+  banner.style.display = 'flex';
+  // Start preloading Tesseract.js and OpenCV.js in background
+  const preload = async () => {
+    try {
+      // Preload Tesseract.js via the worker
+      const worker = new Worker('receipt-worker.js');
+      // Test it loads
+      worker.postMessage({ type: 'ping', id: 'preload' });
+      setTimeout(() => { worker.terminate(); }, 100);
+      DB.set('fl_ocr_downloaded', true);
+      openCvLoaded = true;
+      banner.style.display = 'none';
+      toast('OCR engine ready! You can now scan receipts offline.');
+    } catch(e) {
+      banner.style.display = 'none';
+    }
+  };
+  preload();
+}
+
+// Open scan modal
+function openScanModal() {
+  scanImageData = null;
+  scanResultData = null;
+  document.getElementById('scan-preview').style.display = 'none';
+  document.getElementById('scan-placeholder').style.display = 'block';
+  document.getElementById('scan-process-btn').disabled = true;
+  document.getElementById('scan-results').style.display = 'none';
+  document.getElementById('scan-apply-btn').disabled = true;
+  document.getElementById('scan-progress-overlay').style.display = 'none';
+  document.getElementById('scan-confidence').textContent = '';
+
+  // Show download banner on first launch and start preload
+  if (!DB.get('fl_ocr_downloaded', false)) {
+    downloadOcrEngine();
+  }
+
+  if (window.clearModalSwipeStyles) window.clearModalSwipeStyles('modal-scan');
+  document.getElementById('modal-scan').classList.add('open');
+}
+
+function closeScanModal() {
+  document.getElementById('modal-scan').classList.remove('open');
+}
+
+function pickReceiptImage() {
+  document.getElementById('scan-file-input').click();
+}
+
+function handleReceiptImage(input) {
+  const file = input.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = e => {
+    const img = new Image();
+    img.onload = () => {
+      // Canvas-based preprocessing
+      const canvas = document.getElementById('scan-preview');
+      const ctx = canvas.getContext('2d');
+      const MAX_W = 1200;
+      let w = img.width, h = img.height;
+      if (w > MAX_W) { h = h * MAX_W / w; w = MAX_W; }
+      if (h > 900) { w = w * 900 / h; h = 900; }
+      canvas.width = w; canvas.height = h;
+
+      // Draw original
+      ctx.drawImage(img, 0, 0, w, h);
+
+      // Apply canvas-based image enhancement (grayscale + contrast)
+      const imageData = ctx.getImageData(0, 0, w, h);
+      const data = imageData.data;
+      for (let i = 0; i < data.length; i += 4) {
+        const gray = data[i] * 0.299 + data[i+1] * 0.587 + data[i+2] * 0.114;
+        // Contrast enhancement
+        const factor = 1.3;
+        const adjusted = factor * (gray - 128) + 128;
+        const val = Math.max(0, Math.min(255, adjusted));
+        data[i] = data[i+1] = data[i+2] = val;
+      }
+      ctx.putImageData(imageData, 0, 0);
+
+      // Store processed image data
+      scanImageData = canvas.toDataURL('image/jpeg', 0.85);
+
+      canvas.style.display = 'block';
+      document.getElementById('scan-placeholder').style.display = 'none';
+      document.getElementById('scan-process-btn').disabled = false;
+      input.value = '';
+    };
+    img.src = e.target.result;
+  };
+  reader.readAsDataURL(file);
+}
+
+// Process receipt with OCR
+async function processReceipt() {
+  if (!scanImageData) { toast('Select a receipt image first'); return; }
+
+  const overlay = document.getElementById('scan-progress-overlay');
+  const progressText = document.getElementById('scan-progress-text');
+  overlay.style.display = 'flex';
+  progressText.textContent = 'Running OCR…';
+
+  const processBtn = document.getElementById('scan-process-btn');
+  processBtn.disabled = true;
+
+  scanJobId = uid();
+
+  try {
+    // Use the web worker for OCR
+    const result = await new Promise((resolve, reject) => {
+      const worker = new Worker('receipt-worker.js');
+      worker.postMessage({ type: 'recognize', imageDataUrl: scanImageData, id: scanJobId });
+
+      worker.addEventListener('message', e => {
+        const msg = e.data;
+        if (msg.type === 'result') {
+          resolve(msg.text);
+          worker.terminate();
+        } else if (msg.type === 'progress') {
+          if (progressText.textContent !== msg.status) progressText.textContent = msg.status;
+        } else if (msg.type === 'error') {
+          reject(new Error(msg.error));
+          worker.terminate();
+        }
+      });
+
+      worker.addEventListener('error', e => {
+        reject(new Error('Worker error: ' + e.message));
+      });
+
+      // Timeout after 60s
+      setTimeout(() => { worker.terminate(); reject(new Error('OCR timed out')); }, 60000);
+    });
+
+    overlay.style.display = 'none';
+    processBtn.disabled = false;
+
+    // Extract fields from raw OCR text
+    const extracted = extractReceiptFields(result);
+    scanResultData = extracted;
+
+    // Populate review panel
+    document.getElementById('scan-date').value = extracted.date || '';
+    document.getElementById('scan-amount').value = extracted.amount || '';
+    document.getElementById('scan-litres').value = extracted.litres || '';
+    document.getElementById('scan-station').value = extracted.station || '';
+    document.getElementById('scan-fueltype').value = extracted.fuelType || '';
+    document.getElementById('scan-fulltank').checked = true;
+
+    document.getElementById('scan-results').style.display = 'block';
+    document.getElementById('scan-apply-btn').disabled = false;
+
+    // Show confidence
+    const confEl = document.getElementById('scan-confidence');
+    const stats = [];
+    if (extracted.date) stats.push('📅 found');
+    if (extracted.amount) stats.push('💰 ₹'+extracted.amount);
+    if (extracted.litres) stats.push('⛽ '+extracted.litres+'L');
+    if (extracted.station) stats.push('🏪 '+extracted.station);
+    confEl.textContent = 'Extracted: ' + (stats.length ? stats.join(' · ') : 'partial — please review and edit above');
+
+    // Save to IndexedDB
+    try {
+      await saveReceiptToDB({
+        rawImage: scanImageData,
+        ocrRawText: result,
+        extractedFields: extracted,
+        createdAt: new Date().toISOString(),
+        syncedToEntry: false,
+        fuelEntryId: null
+      });
+    } catch(e) { /* silent — IDB may not be available */ }
+
+    toast('Receipt processed! Review fields and tap "Populate Fuel Entry"');
+
+  } catch(err) {
+    overlay.style.display = 'none';
+    processBtn.disabled = false;
+    toast('OCR failed: ' + err.message.slice(0, 50));
+  }
+}
+
+// Regex field extraction
+function extractReceiptFields(text) {
+  const result = { date: '', amount: '', litres: '', station: '', fuelType: '' };
+
+  // Date: DD/MM/YYYY, DD-MM-YYYY, DD.MM.YYYY, YYYY-MM-DD
+  const dateRegexes = [
+    /\b(\d{1,2})[\/\-\.](\d{1,2})[\/\-\.](\d{2,4})\b/g,
+    /\b(\d{4})[\/\-](\d{1,2})[\/\-](\d{1,2})\b/g
+  ];
+  for (const regex of dateRegexes) {
+    const m = regex.exec(text);
+    if (m) {
+      let d, mo, y;
+      if (m[0].includes('-') || m[0].includes('/') || m[0].includes('.')) {
+        if (m[1].length === 4) { y=m[1]; mo=m[2]; d=m[3]; }
+        else { d=m[1]; mo=m[2]; y=m[3]; }
+      }
+      if (y) {
+        if (y.length === 2) y = '20' + y;
+        const dt = new Date(y, mo-1, d);
+        if (!isNaN(dt.getTime()) && dt <= new Date()) {
+          result.date = dt.toISOString().split('T')[0];
+        }
+      }
+    }
+  }
+
+  // Amount: ₹ or Rs. prefix
+  const amountRegex = /(?:₹|Rs\.?|INR|Total|TOTAL)\s*:?\s*(\d[\d,]*\.?\d{0,2})/i;
+  const am = amountRegex.exec(text);
+  if (am) result.amount = parseFloat(am[1].replace(/,/g, ''));
+
+  // Litres: number followed by L/Ltr/Litre
+  const litresRegex = /(\d+\.?\d*)\s*(?:L|Ltrs?|Litres?|Lt)/i;
+  const lm = litresRegex.exec(text);
+  if (lm) {
+    const val = parseFloat(lm[1]);
+    if (val > 0 && val < 200) result.litres = val;
+  }
+
+  // Station
+  const stations = ['HP', 'Hindustan Petroleum', 'BPCL', 'Bharat Petroleum', 'Indian Oil', 'IOC', 'Shell', 'Reliance Petroleum', 'Jio-BP', 'Nayara'];
+  for (const s of stations) {
+    if (text.toLowerCase().includes(s.toLowerCase())) {
+      result.station = s;
+      break;
+    }
+  }
+
+  // Fuel type
+  if (/diesel/i.test(text)) result.fuelType = 'diesel';
+  else if (/cng|gas/i.test(text)) result.fuelType = 'cng';
+  else if (/petrol|gasoline/i.test(text)) result.fuelType = 'petrol';
+
+  return result;
+}
+
+// Apply scan results to fuel form
+function applyScanToFuel() {
+  if (!scanResultData) { toast('No scan data to apply'); return; }
+
+  const date = document.getElementById('scan-date').value;
+  const amount = parseFloat(document.getElementById('scan-amount').value);
+  const litres = parseFloat(document.getElementById('scan-litres').value);
+  const station = document.getElementById('scan-station').value.trim();
+  const fuelType = document.getElementById('scan-fueltype').value;
+  const fullTank = document.getElementById('scan-fulltank').checked;
+
+  if (date) document.getElementById('fuel-date').value = date;
+  if (amount) {
+    document.getElementById('fuel-cost').value = amount;
+    if (litres && amount) {
+      // If litres is also known, calculate price per litre automatically
+      document.getElementById('fuel-litres').value = litres;
+      calcFuelPrice();
+    }
+  }
+  if (station) document.getElementById('fuel-station').value = station;
+  document.getElementById('fuel-fulltank').checked = fullTank;
+
+  if (litres && amount) {
+    document.getElementById('fuel-litres').value = litres;
+    calcFuelPrice();
+  }
+
+  closeScanModal();
+  toast('Receipt data applied to fuel form!');
+}
+
 // ─── INIT ─────────────────────────────────────────────────────
 initTheme();
 seedData();
 if (vehicles.length) dashVehicleId = vehicles[0].id;
 renderDashboard();
+updateRecentPlacesDatalists();
 
 // Follow system theme if user hasn't set a preference
 window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', e => {
