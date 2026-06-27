@@ -1710,10 +1710,24 @@ function extractFuelFieldsFromText(text) {
     station: null, stationConf: 'missing',
   };
 
-  // ── DATE ── formats: DD/MM/YYYY, DD-MM-YYYY, DD.MM.YYYY, YYYY-MM-DD
+  // ── DATE ──────────────────────────────────────────────────────
+  // Supports: DD/MM/YYYY, YYYY-MM-DD, DD-MM-YY, AND month-name formats
+  // like "12-APR-2026", "12 Apr 2026", "Apr 12, 2026".
+  const MONTHS = { jan:1,feb:2,mar:3,apr:4,may:5,jun:6,jul:7,aug:8,sep:9,sept:9,oct:10,nov:11,dec:12 };
+  const monthNamePattern = Object.keys(MONTHS).join('|');
+
   const datePatterns = [
+    // 12-APR-2026 / 12 Apr 2026 / 12.Apr.2026
+    { re: new RegExp(`\\b(\\d{1,2})[\\s\\-./]+(${monthNamePattern})[\\s\\-./]+(\\d{4})\\b`, 'i'),
+      fmt: (m) => `${m[3]}-${String(MONTHS[m[2].toLowerCase()]).padStart(2,'0')}-${m[1].padStart(2,'0')}`, conf: 'high' },
+    // Apr 12, 2026 / Apr-12-2026
+    { re: new RegExp(`\\b(${monthNamePattern})[\\s\\-./]+(\\d{1,2}),?[\\s\\-./]+(\\d{4})\\b`, 'i'),
+      fmt: (m) => `${m[3]}-${String(MONTHS[m[1].toLowerCase()]).padStart(2,'0')}-${m[2].padStart(2,'0')}`, conf: 'high' },
+    // Numeric DD/MM/YYYY or DD-MM-YYYY (assume day-first, standard for Indian receipts)
     { re: /\b(\d{2})[\/\-.](\d{2})[\/\-.](\d{4})\b/, fmt: (m) => `${m[3]}-${m[2]}-${m[1]}`, conf: 'high' },
+    // YYYY-MM-DD (ISO)
     { re: /\b(\d{4})[\/\-.](\d{2})[\/\-.](\d{2})\b/, fmt: (m) => `${m[1]}-${m[2]}-${m[3]}`, conf: 'high' },
+    // 2-digit year fallback: DD/MM/YY
     { re: /\b(\d{2})[\/\-.](\d{2})[\/\-.](\d{2})\b/, fmt: (m) => `20${m[3]}-${m[2]}-${m[1]}`, conf: 'medium' },
   ];
   for (const p of datePatterns) {
@@ -1721,16 +1735,19 @@ function extractFuelFieldsFromText(text) {
     if (m) {
       const candidate = p.fmt(m);
       const d = new Date(candidate);
-      if (!isNaN(d) && d.getFullYear() > 2015 && d.getFullYear() < 2035) {
+      // Sanity: valid date, reasonable year, and month/day actually in range
+      const [, mm, dd] = candidate.split('-').map(Number);
+      if (!isNaN(d) && d.getFullYear() > 2015 && d.getFullYear() < 2035 && mm >= 1 && mm <= 12 && dd >= 1 && dd <= 31) {
         result.date = candidate; result.dateConf = p.conf; break;
       }
     }
   }
 
-  // ── LITRES ── e.g. "12.34 L", "Qty: 12.34", "Volume 12.34 Ltr"
+  // ── LITRES / VOLUME ─────────────────────────────────────────────
   const litrePatterns = [
-    { re: /(?:qty|quantity|vol(?:ume)?|ltr|litre|liter)s?\s*[:\-]?\s*(\d{1,3}\.\d{1,3})/i, conf: 'high' },
-    { re: /(\d{1,3}\.\d{1,3})\s*(?:l|ltr|litre|liter)s?\b/i, conf: 'high' },
+    { re: /(?:volume|vol)\s*[:\-]?\s*(\d{1,3}\.\d{1,3})\s*(?:l|ltr|litre|liter)/i, conf: 'high' },
+    { re: /(?:qty|quantity)\s*[:\-]?\s*(\d{1,3}\.\d{1,3})/i, conf: 'high' },
+    { re: /(\d{1,3}\.\d{1,3})\s*(?:ltr|litre|liter)s?\b/i, conf: 'high' },
     { re: /(\d{1,3}\.\d{1,3})\s*L\b/, conf: 'medium' },
   ];
   for (const p of litrePatterns) {
@@ -1741,24 +1758,36 @@ function extractFuelFieldsFromText(text) {
     }
   }
 
-  // ── PRICE PER LITRE ── e.g. "Rate: 94.50", "Price/L 94.50", "@ 94.50"
+  // ── PRICE PER LITRE ──────────────────────────────────────────────
+  // Receipts vary: "RATE : 103.54 INR/Ltr", "RATE © 103.54", "Price/L 94.50", "@ 94.50/L"
+  // Key fix: don't require "/L" to appear directly after "rate" — it usually
+  // appears AFTER the number instead (e.g. "103.54 INR/Ltr"), and OCR often
+  // misreads the colon after RATE as ©, :, =, or similar junk characters.
   const ppl_patterns = [
-    { re: /(?:rate|price)\s*(?:\/|per)?\s*l(?:tr|itre)?\s*[:\-]?\s*₹?\s*(\d{2,3}\.\d{1,2})/i, conf: 'high' },
-    { re: /@\s*₹?\s*(\d{2,3}\.\d{1,2})/i, conf: 'medium' },
+    // "RATE <junk> 103.54 <unit>/L" — unit can be INR, Rs, ₹ etc, before /Ltr or /L
+    { re: /rate\s*[^a-zA-Z0-9]{0,3}\s*(\d{2,3}\.\d{1,2})\s*(?:inr|rs\.?|₹)?\s*\/\s*l(?:tr|itre)?/i, conf: 'high' },
+    // "RATE: 103.54" with no unit suffix at all
+    { re: /rate\s*[:\-=©]?\s*(\d{2,3}\.\d{1,2})\b/i, conf: 'high' },
+    // "Price/L 94.50" or "Price per litre: 94.50"
+    { re: /price\s*(?:\/|per)?\s*l(?:tr|itre)?\s*[:\-]?\s*₹?\s*(\d{2,3}\.\d{1,2})/i, conf: 'high' },
+    // "@ 94.50/L" or "@94.50" — only trust this if immediately followed by a litre unit
+    { re: /@\s*₹?\s*(\d{2,3}\.\d{1,2})\s*\/?\s*l(?:tr|itre)?\b/i, conf: 'medium' },
   ];
   for (const p of ppl_patterns) {
     const m = joined.match(p.re);
     if (m) {
       const val = parseFloat(m[1]);
-      if (val > 30 && val < 200) { result.pricePerL = val; result.pricePerLConf = p.conf; break; }
+      // Realistic Indian fuel price range — keeps OCR garbage from slipping through
+      if (val > 60 && val < 150) { result.pricePerL = val; result.pricePerLConf = p.conf; break; }
     }
   }
 
-  // ── TOTAL COST ── e.g. "Total: 1234.50", "Amount Rs 1234", "₹1234.50"
+  // ── TOTAL COST / AMOUNT ──────────────────────────────────────────
   const costPatterns = [
-    { re: /(?:total|grand\s*total|net\s*amount|amount\s*payable)\s*[:\-]?\s*(?:rs\.?|₹|inr)?\s*(\d{2,6}\.\d{2})/i, conf: 'high' },
+    // Plain "AMOUNT: 1000.00 INR" — the most common label on Indian fuel receipts
+    { re: /\bamount\s*[:\-]?\s*(?:rs\.?|₹|inr)?\s*(\d{2,6}(?:\.\d{2})?)\b/i, conf: 'high' },
+    { re: /(?:total|grand\s*total|net\s*amount|amount\s*payable)\s*[:\-]?\s*(?:rs\.?|₹|inr)?\s*(\d{2,6}(?:\.\d{2})?)/i, conf: 'high' },
     { re: /(?:rs\.?|₹|inr)\s*(\d{2,6}\.\d{2})/i, conf: 'medium' },
-    { re: /\b(\d{2,6}\.\d{2})\b(?!\s*(?:l|ltr|litre))/i, conf: 'low' },
   ];
   for (const p of costPatterns) {
     const m = joined.match(p.re);
@@ -1768,15 +1797,34 @@ function extractFuelFieldsFromText(text) {
     }
   }
 
-  // Cross-check: if we have litres + price/L but no/low-confidence cost, derive it
-  if (result.litres && result.pricePerL && (!result.cost || result.costConf === 'low')) {
-    const derived = Math.round(result.litres * result.pricePerL * 100) / 100;
-    result.cost = derived; result.costConf = 'high'; // cross-validated
+  // ── Cross-validation (conservative — only fills GAPS, never overrides a real find) ──
+  // If cost is still completely missing, derive it from litres × price/L.
+  if (!result.cost && result.litres && result.pricePerL) {
+    result.cost = Math.round(result.litres * result.pricePerL * 100) / 100;
+    result.costConf = 'medium'; // derived, not directly read — flagged lower than a direct match
   }
-  // If we have cost + litres but no price/L, derive it
-  if (result.cost && result.litres && !result.pricePerL) {
+  // If price/L is still completely missing, derive it from cost ÷ litres.
+  if (!result.pricePerL && result.cost && result.litres) {
     result.pricePerL = Math.round((result.cost / result.litres) * 100) / 100;
     result.pricePerLConf = 'medium';
+  }
+  // Sanity cross-check: if we have all three (cost, litres, price/L) from DIRECT
+  // matches, verify they roughly agree. If they're wildly inconsistent, it means
+  // one of the OCR reads is garbage — flag it as low-confidence rather than silently
+  // trusting a possibly-wrong number.
+  if (result.cost && result.litres && result.pricePerL) {
+    const expected = result.litres * result.pricePerL;
+    const diff = Math.abs(expected - result.cost) / result.cost;
+    if (diff > 0.15) { // more than 15% mismatch — something's off
+      // Trust AMOUNT (cost) over a derived rate, since "AMOUNT" is usually printed
+      // clearly and rate-parsing is more failure-prone due to unit-symbol noise.
+      if (result.pricePerLConf !== 'high') {
+        result.pricePerL = Math.round((result.cost / result.litres) * 100) / 100;
+        result.pricePerLConf = 'low';
+      } else {
+        result.costConf = 'low'; // keep the OCR'd cost but flag it for review
+      }
+    }
   }
 
   // ── ODOMETER ── e.g. "ODO: 45230", "KM 45230", "Odometer Reading 45230"
