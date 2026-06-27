@@ -1,0 +1,3725 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="FuelLog">
+<meta name="application-name" content="FuelLog">
+<meta name="theme-color" content="#0F1729">
+<meta name="description" content="Track fuel, trips and vehicle expenses. Private, offline-first.">
+<title>FuelLog — Vehicle Tracker</title>
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="icon-192.png">
+<link rel="icon" type="image/png" sizes="192x192" href="icon-192.png">
+<style>
+  :root {
+    --bg: #0F1729;
+    --bg2: #1E293B;
+    --bg3: #263348;
+    --border: #334155;
+    --primary: #3B82F6;
+    --primary-dim: #1D4ED8;
+    --amber: #F59E0B;
+    --green: #10B981;
+    --red: #EF4444;
+    --purple: #8B5CF6;
+    --text: #F1F5F9;
+    --text2: #94A3B8;
+    --text3: #64748B;
+    --card-radius: 16px;
+    --tab-h: 68px;
+    --safe-bottom: env(safe-area-inset-bottom, 0px);
+  }
+
+  /* LIGHT MODE */
+  html.light {
+    --bg: #F0F4F8;
+    --bg2: #FFFFFF;
+    --bg3: #E8EDF3;
+    --border: #D1D9E6;
+    --text: #0F1729;
+    --text2: #475569;
+    --text3: #94A3B8;
+  }
+  html.light .odo-display { background: linear-gradient(135deg,#1E3A5F,#2D5A8E); }
+  html.light .odo-val { background: linear-gradient(135deg,#fff,#CBD5E1); -webkit-background-clip:text; background-clip:text; -webkit-text-fill-color:transparent; }
+  html.light .odo-strip-item { background: linear-gradient(135deg,#1E3A5F,#2D5A8E); }
+  html.light #nav { box-shadow: 0 -1px 0 var(--border); }
+  html.light .stat-card { box-shadow: 0 1px 4px rgba(0,0,0,.06); }
+  html.light .modal { box-shadow: 0 -8px 40px rgba(0,0,0,.12); }
+  html.light .entry-card { box-shadow: 0 1px 3px rgba(0,0,0,.05); }
+  html.light .fab { box-shadow: 0 8px 24px rgba(59,130,246,.35); }
+
+  /* TOGGLE SWITCH */
+  .theme-toggle-row { display: flex; align-items: center; justify-content: space-between; background: var(--bg2); border-radius: 12px; padding: 14px 16px; margin-bottom: 8px; }
+  .toggle-track { width: 48px; height: 26px; border-radius: 13px; background: var(--bg3); border: 1.5px solid var(--border); position: relative; cursor: pointer; transition: background .25s, border-color .25s; flex-shrink: 0; }
+  .toggle-track.on { background: var(--primary); border-color: var(--primary); }
+  .toggle-thumb { position: absolute; top: 2px; left: 2px; width: 18px; height: 18px; border-radius: 50%; background: var(--text3); transition: transform .25s cubic-bezier(.4,0,.2,1), background .25s; box-shadow: 0 1px 4px rgba(0,0,0,.3); }
+  .toggle-track.on .toggle-thumb { transform: translateX(22px); background: white; }
+  * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+  html, body { height: 100%; background: var(--bg); color: var(--text); font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif; overflow: hidden; }
+  body { display: flex; flex-direction: column; }
+
+  /* SCROLLABLE CONTENT */
+  #app { flex: 1; overflow: hidden; position: relative; }
+  .page { position: absolute; inset: 0; overflow-y: auto; padding: 16px 16px calc(var(--tab-h) + var(--safe-bottom) + 16px); display: none; -webkit-overflow-scrolling: touch; }
+  .page.active { display: block; }
+  .page::-webkit-scrollbar { display: none; }
+
+  /* BOTTOM NAV */
+  #nav { position: fixed; bottom: 0; left: 0; right: 0; height: calc(var(--tab-h) + var(--safe-bottom)); background: var(--bg2); border-top: 1px solid var(--border); display: flex; align-items: flex-start; padding-top: 8px; z-index: 100; }
+  .nav-btn { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 4px; cursor: pointer; padding: 4px; border: none; background: none; color: var(--text3); transition: color .2s; }
+  .nav-btn.active { color: var(--primary); }
+  .nav-btn svg { width: 22px; height: 22px; }
+  .nav-btn span { font-size: 10px; font-weight: 600; letter-spacing: .3px; }
+
+  /* HEADER */
+  .page-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 20px; }
+  .page-title { font-size: 24px; font-weight: 700; letter-spacing: -.5px; }
+  .page-sub { font-size: 13px; color: var(--text2); margin-top: 2px; }
+
+  /* VEHICLE PILL SELECTOR */
+  .vehicle-scroll { display: flex; gap: 8px; overflow-x: auto; padding-bottom: 4px; margin-bottom: 20px; scrollbar-width: none; }
+  .vehicle-scroll::-webkit-scrollbar { display: none; }
+  .vpill { flex-shrink: 0; padding: 8px 14px; border-radius: 20px; border: 1.5px solid var(--border); font-size: 13px; font-weight: 600; cursor: pointer; transition: all .2s; color: var(--text2); background: var(--bg2); }
+  .vpill.active { border-color: var(--primary); color: var(--primary); background: rgba(59,130,246,.12); }
+  .vpill-add { color: var(--primary); border-color: var(--primary); }
+
+  /* STAT CARDS */
+  .stats-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 20px; }
+  .stats-trio { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; margin-top: 12px; }
+  .stats-trio .stat-card { padding: 12px 10px; }
+  .stats-trio .stat-icon { width: 26px; height: 26px; margin-bottom: 8px; }
+  .stats-trio .stat-icon svg { width: 13px; height: 13px; }
+  .stats-trio .stat-label { font-size: 9.5px; margin-bottom: 3px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .stats-trio .stat-val { font-size: 18px; }
+  .stats-trio .stat-val.sm { font-size: 15px; }
+  .stats-trio .stat-unit { font-size: 10px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .stat-card { background: var(--bg2); border-radius: var(--card-radius); padding: 16px; position: relative; overflow: hidden; }
+  .stat-card.wide { grid-column: 1 / -1; width: 100%; margin-bottom: 0; box-sizing: border-box; }
+  .stat-card::before { content: ''; position: absolute; top: -20px; right: -20px; width: 80px; height: 80px; border-radius: 50%; opacity: .08; }
+  .stat-card.blue::before { background: var(--primary); }
+  .stat-card.amber::before { background: var(--amber); }
+  .stat-card.green::before { background: var(--green); }
+  .stat-card.purple::before { background: var(--purple); }
+  .stat-icon { width: 32px; height: 32px; border-radius: 8px; display: flex; align-items: center; justify-content: center; margin-bottom: 10px; }
+  .stat-icon.blue { background: rgba(59,130,246,.2); color: var(--primary); }
+  .stat-icon.amber { background: rgba(245,158,11,.2); color: var(--amber); }
+  .stat-icon.green { background: rgba(16,185,129,.2); color: var(--green); }
+  .stat-icon.purple { background: rgba(139,92,246,.2); color: var(--purple); }
+  .stat-icon svg { width: 18px; height: 18px; }
+  .stat-label { font-size: 11px; color: var(--text3); font-weight: 600; text-transform: uppercase; letter-spacing: .5px; margin-bottom: 4px; }
+  .stat-val { font-size: 26px; font-weight: 700; letter-spacing: -1px; font-variant-numeric: tabular-nums; line-height: 1; }
+  .stat-val.sm { font-size: 20px; }
+  .stat-unit { font-size: 12px; color: var(--text2); margin-top: 2px; }
+  .stat-change { font-size: 11px; margin-top: 6px; display: flex; align-items: center; gap: 3px; }
+  .stat-change.up { color: var(--green); }
+  .stat-change.down { color: var(--red); }
+
+  /* MULTI-VEHICLE ODO STRIP */
+  .odo-strip { display: flex; gap: 8px; overflow-x: auto; margin-bottom: 20px; scrollbar-width: none; }
+  .odo-strip::-webkit-scrollbar { display: none; }
+  .odo-strip-item { flex-shrink: 0; background: linear-gradient(135deg,#0A0E1A,#1a1f35); border: 1px solid rgba(59,130,246,.2); border-radius: 14px; padding: 14px 16px; min-width: 130px; position: relative; overflow: hidden; }
+  .odo-strip-item::before { content:''; position:absolute; top:0; left:0; right:0; height:1px; background:linear-gradient(90deg,transparent,rgba(59,130,246,.4),transparent); }
+  .odo-strip-name { font-size: 10px; color: var(--text3); font-weight: 600; text-transform: uppercase; letter-spacing: .5px; margin-bottom: 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .odo-strip-val { font-size: 22px; font-weight: 800; letter-spacing: -1px; font-variant-numeric: tabular-nums; background: linear-gradient(135deg,#fff,#94A3B8); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; }
+  .odo-strip-km { font-size: 10px; color: var(--text3); margin-top: 2px; }
+
+  /* INSIGHT CARDS */
+  .insight-row { display: flex; gap: 8px; margin-bottom: 12px; overflow-x: auto; scrollbar-width: none; }
+  .insight-row::-webkit-scrollbar { display: none; }
+  .insight-chip { flex-shrink: 0; background: var(--bg2); border-radius: 12px; padding: 10px 14px; display: flex; flex-direction: column; gap: 3px; min-width: 120px; }
+  .insight-label { font-size: 10px; color: var(--text3); font-weight: 600; text-transform: uppercase; letter-spacing: .4px; }
+  .insight-val { font-size: 15px; font-weight: 700; font-variant-numeric: tabular-nums; }
+  .insight-sub { font-size: 10px; color: var(--text3); }
+
+  /* MINI CHART */
+  .chart-card { background: var(--bg2); border-radius: var(--card-radius); padding: 16px; margin-bottom: 12px; }
+  .chart-title { font-size: 13px; font-weight: 600; color: var(--text2); margin-bottom: 14px; }
+  .bar-chart-wrap { display: flex; gap: 0; }
+  .bar-chart-yaxis { display: flex; flex-direction: column; justify-content: space-between; padding-bottom: 20px; margin-right: 6px; }
+  .bar-chart-ylabel { font-size: 9px; color: var(--text3); text-align: right; font-variant-numeric: tabular-nums; line-height: 1; white-space: nowrap; }
+  .bar-chart { display: flex; align-items: flex-end; gap: 5px; height: 100px; flex: 1; border-left: 1px solid var(--border); padding-left: 6px; position: relative; }
+  .bar-chart::before, .bar-chart::after { content: ''; position: absolute; left: 0; right: 0; border-top: 1px dashed rgba(255,255,255,.04); pointer-events: none; }
+  .bar-chart::before { top: 0; }
+  .bar-chart::after { top: 50%; }
+  .bar-wrap { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: flex-end; gap: 4px; height: 100%; }
+  .bar-val { font-size: 8px; color: var(--text2); font-variant-numeric: tabular-nums; text-align: center; line-height: 1; opacity: 0; transition: opacity .3s .4s; white-space: nowrap; }
+  .bar-val.visible { opacity: 1; }
+  .bar { width: 100%; border-radius: 3px 3px 0 0; transition: height .5s cubic-bezier(.4,0,.2,1); min-height: 2px; flex-shrink: 0; }
+  .bar-label { font-size: 9px; color: var(--text3); font-variant-numeric: tabular-nums; flex-shrink: 0; }
+
+  /* ENTRY LIST */
+  .section-title { font-size: 13px; font-weight: 600; color: var(--text2); text-transform: uppercase; letter-spacing: .5px; margin-bottom: 10px; }
+  .entry-list { display: flex; flex-direction: column; gap: 8px; }
+  .entry-card { background: var(--bg2); border-radius: 12px; padding: 14px 16px; display: flex; align-items: center; gap: 12px; cursor: pointer; transition: background .15s; }
+  .entry-card:active { background: var(--bg3); }
+  /* Multi-select */
+  .entry-card.selectable { cursor: default; }
+  .entry-card.selectable:active { background: var(--bg2); }
+  .entry-card.selected-item { background: rgba(59,130,246,.12); border: 1.5px solid rgba(59,130,246,.4); }
+  .entry-card.selected-item:active { background: rgba(59,130,246,.18); }
+  .select-check { width: 22px; height: 22px; border-radius: 50%; border: 2px solid var(--border); display: flex; align-items: center; justify-content: center; flex-shrink: 0; transition: all .15s; background: var(--bg3); }
+  .entry-card.selected-item .select-check { background: var(--primary); border-color: var(--primary); }
+  .select-check svg { opacity: 0; transition: opacity .15s; }
+  .entry-card.selected-item .select-check svg { opacity: 1; }
+
+  /* Floating delete bar */
+  #select-bar { position: fixed; bottom: calc(var(--tab-h) + var(--safe-bottom) + 12px); left: 16px; right: 16px; background: var(--bg2); border: 1px solid var(--border); border-radius: 18px; padding: 12px 16px; display: flex; align-items: center; gap: 12px; z-index: 95; transform: translateY(120px); transition: transform .3s cubic-bezier(.4,0,.2,1); box-shadow: 0 8px 32px rgba(0,0,0,.5); }
+  #select-bar.visible { transform: translateY(0); }
+  #select-bar-label { flex: 1; font-size: 14px; font-weight: 600; color: var(--text); }
+  #select-bar-all { font-size: 13px; font-weight: 600; color: var(--primary); cursor: pointer; padding: 6px 0; white-space: nowrap; }
+  #select-bar-cancel { font-size: 13px; font-weight: 600; color: var(--text2); cursor: pointer; padding: 6px 0; }
+  #select-bar-delete { background: var(--red); color: white; border: none; border-radius: 10px; padding: 8px 16px; font-size: 13px; font-weight: 700; cursor: pointer; transition: opacity .15s; white-space: nowrap; }
+  #select-bar-delete:active { opacity: .8; }
+  #select-bar-delete:disabled { opacity: .4; cursor: default; }
+
+  /* Select-mode header button */
+  .select-mode-btn { display: flex; align-items: center; gap: 5px; background: var(--bg3); border: 1.5px solid var(--border); border-radius: 10px; padding: 7px 12px; font-size: 12px; font-weight: 700; color: var(--text2); cursor: pointer; transition: all .2s; white-space: nowrap; }
+  .select-mode-btn.active { background: rgba(59,130,246,.15); border-color: var(--primary); color: var(--primary); }
+
+  .entry-dot { width: 40px; height: 40px; border-radius: 10px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+  .entry-dot.fuel { background: rgba(245,158,11,.15); color: var(--amber); }
+  .entry-dot.trip { background: rgba(59,130,246,.15); color: var(--primary); }
+  .entry-dot.expense { background: rgba(139,92,246,.15); color: var(--purple); }
+  .entry-dot svg { width: 20px; height: 20px; }
+  .entry-info { flex: 1; min-width: 0; }
+  .entry-name { font-size: 14px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .entry-meta { font-size: 12px; color: var(--text2); margin-top: 2px; }
+  .entry-amount { text-align: right; flex-shrink: 0; }
+  .entry-val { font-size: 15px; font-weight: 700; font-variant-numeric: tabular-nums; }
+  .entry-val.amber { color: var(--amber); }
+  .entry-val.green { color: var(--green); }
+  .entry-sub { font-size: 11px; color: var(--text3); margin-top: 2px; }
+
+  /* FAB */
+  .fab { position: fixed; bottom: calc(var(--tab-h) + var(--safe-bottom) + 16px); right: 20px; width: 56px; height: 56px; border-radius: 18px; background: var(--primary); display: flex; align-items: center; justify-content: center; box-shadow: 0 8px 24px rgba(59,130,246,.4); cursor: pointer; z-index: 90; border: none; transition: transform .15s, box-shadow .15s; }
+  .fab:active { transform: scale(.93); box-shadow: 0 4px 12px rgba(59,130,246,.3); }
+  .fab svg { width: 24px; height: 24px; color: white; }
+
+  /* MODAL */
+  .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,.7); z-index: 200; display: none; align-items: flex-end; backdrop-filter: blur(4px); }
+  .modal-overlay.open { display: flex; }
+  .modal-overlay.dismissing { animation: fadeOut .25s forwards; }
+  @keyframes fadeOut { to { opacity: 0; } }
+  .modal { background: var(--bg2); border-radius: 24px 24px 0 0; width: 100%; max-height: 78vh; display: flex; flex-direction: column; animation: slideUp .3s cubic-bezier(.4,0,.2,1); touch-action: pan-y; overflow: hidden; }
+  .modal.swiping { transition: none; }
+  .modal-handle-area { padding: 8px 20px 0; flex-shrink: 0; cursor: grab; }
+  .modal-handle { width: 36px; height: 4px; background: var(--border); border-radius: 2px; margin: 0 auto 10px; }
+  .modal-header { padding: 0 20px 10px; flex-shrink: 0; }
+  .modal-title { font-size: 17px; font-weight: 700; }
+  .modal-body { overflow-y: auto; padding: 0 20px; flex: 1; min-height: 0; }
+  .modal-body::-webkit-scrollbar { display: none; }
+  .modal-footer { padding: 8px 20px calc(10px + var(--safe-bottom)); flex-shrink: 0; border-top: 1px solid var(--border); background: var(--bg2); }
+  @keyframes slideUp { from { transform: translateY(100%); } to { transform: translateY(0); } }
+
+  /* FORM */
+  .form-group { margin-bottom: 12px; }
+  .form-label { font-size: 11px; font-weight: 600; color: var(--text2); text-transform: uppercase; letter-spacing: .5px; margin-bottom: 5px; display: block; }
+  .form-input { width: 100%; background: var(--bg3); border: 1.5px solid var(--border); border-radius: 10px; padding: 10px 12px; font-size: 14px; color: var(--text); outline: none; transition: border-color .2s; font-family: inherit; }
+  .form-input:focus { border-color: var(--primary); }
+  .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .form-select { appearance: none; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' fill='%2364748B' viewBox='0 0 256 256'%3E%3Cpath d='M213.66,101.66l-80,80a8,8,0,0,1-11.32,0l-80-80A8,8,0,0,1,53.66,90.34L128,164.69l74.34-74.35a8,8,0,0,1,11.32,11.32Z'/%3E%3C/svg%3E"); background-repeat: no-repeat; background-position: right 12px center; padding-right: 36px; cursor: pointer; }
+  .form-hint { font-size: 12px; color: var(--text3); margin-top: 4px; }
+  .calc-badge { display: inline-flex; align-items: center; gap: 4px; background: rgba(59,130,246,.15); color: var(--primary); border-radius: 6px; padding: 3px 8px; font-size: 12px; font-weight: 600; margin-top: 4px; }
+  textarea.form-input { resize: none; height: 80px; }
+  .checkbox-row { display: flex; align-items: center; gap: 10px; cursor: pointer; }
+  .checkbox-row input { width: 18px; height: 18px; accent-color: var(--primary); cursor: pointer; }
+  .checkbox-label { font-size: 14px; font-weight: 500; }
+
+  /* BUTTONS */
+  .btn { width: 100%; padding: 15px; border-radius: 14px; font-size: 16px; font-weight: 700; border: none; cursor: pointer; transition: opacity .15s, transform .1s; }
+  .btn:active { opacity: .85; transform: scale(.98); }
+  .btn-primary { background: var(--primary); color: white; }
+  .btn-danger { background: var(--red); color: white; }
+  .btn-ghost { background: var(--bg3); color: var(--text); }
+  .btn-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 20px; }
+
+  /* VEHICLE CARD */
+  .vehicle-card { background: var(--bg2); border-radius: var(--card-radius); padding: 18px; margin-bottom: 12px; display: flex; align-items: center; gap: 14px; cursor: pointer; border: 1.5px solid transparent; transition: border-color .2s; }
+  .vehicle-card.selected { border-color: var(--primary); }
+  .vehicle-icon { width: 52px; height: 52px; border-radius: 14px; background: rgba(59,130,246,.15); display: flex; align-items: center; justify-content: center; flex-shrink: 0; font-size: 24px; }
+  .vehicle-info { flex: 1; }
+  .vehicle-name { font-size: 16px; font-weight: 700; }
+  .vehicle-reg { font-size: 12px; color: var(--text2); margin-top: 2px; font-family: monospace; letter-spacing: .5px; }
+  .vehicle-stats-row { display: flex; gap: 16px; margin-top: 8px; }
+  .vehicle-stat { font-size: 11px; color: var(--text3); }
+  .vehicle-stat b { color: var(--text2); font-variant-numeric: tabular-nums; }
+
+  /* TABS inside page */
+  .inner-tabs { display: flex; gap: 0; background: var(--bg2); border-radius: 12px; padding: 4px; margin-bottom: 16px; }
+  .inner-tab { flex: 1; padding: 8px; text-align: center; font-size: 13px; font-weight: 600; border-radius: 8px; cursor: pointer; color: var(--text3); transition: all .2s; }
+  .inner-tab.active { background: var(--bg3); color: var(--text); }
+
+  /* EMPTY STATE */
+  .empty { text-align: center; padding: 48px 24px; }
+  .empty-icon { font-size: 48px; margin-bottom: 16px; }
+  .empty-title { font-size: 18px; font-weight: 700; margin-bottom: 8px; }
+  .empty-sub { font-size: 14px; color: var(--text2); line-height: 1.6; }
+
+  /* BADGE */
+  .badge { display: inline-flex; align-items: center; padding: 3px 8px; border-radius: 6px; font-size: 11px; font-weight: 700; }
+  .badge.petrol { background: rgba(245,158,11,.15); color: var(--amber); }
+  .badge.diesel { background: rgba(16,185,129,.15); color: var(--green); }
+  .badge.cng { background: rgba(139,92,246,.15); color: var(--purple); }
+  .badge.electric { background: rgba(59,130,246,.15); color: var(--primary); }
+
+  /* ODOMETER DISPLAY */
+  .odo-display { background: linear-gradient(135deg, #0A0E1A, #1a1f35); border-radius: 16px; padding: 20px; text-align: center; margin-bottom: 20px; border: 1px solid rgba(59,130,246,.2); position: relative; overflow: hidden; }
+  .odo-display::before { content: ''; position: absolute; top: 0; left: 0; right: 0; height: 1px; background: linear-gradient(90deg, transparent, rgba(59,130,246,.5), transparent); }
+  .odo-label { font-size: 11px; color: var(--text3); font-weight: 600; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 8px; }
+  .odo-val { font-size: 40px; font-weight: 800; letter-spacing: -2px; font-variant-numeric: tabular-nums; background: linear-gradient(135deg, #fff, #94A3B8); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; }
+  .odo-unit { font-size: 14px; color: var(--text3); margin-top: 4px; }
+
+  /* ACTIVE TRIP CARD */
+  @keyframes pulseDot { 0%,100% { opacity: 1; transform: scale(1); } 50% { opacity: .4; transform: scale(.8); } }
+  .active-trip-card { background: linear-gradient(135deg, rgba(16,185,129,.14), rgba(16,185,129,.04)); border: 1.5px solid rgba(16,185,129,.35); border-radius: 16px; padding: 16px; margin-bottom: 20px; position: relative; overflow: hidden; }
+  .active-trip-card::before { content: ''; position: absolute; top: 0; left: 0; right: 0; height: 1px; background: linear-gradient(90deg, transparent, rgba(16,185,129,.5), transparent); }
+  .active-trip-header { display: flex; align-items: center; gap: 8px; margin-bottom: 12px; }
+  .active-trip-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--green); flex-shrink: 0; animation: pulseDot 1.6s ease-in-out infinite; }
+  .active-trip-label { font-size: 11px; font-weight: 700; color: var(--green); text-transform: uppercase; letter-spacing: .6px; flex: 1; }
+  .active-trip-elapsed { font-size: 11px; color: var(--text2); font-variant-numeric: tabular-nums; }
+  .active-trip-body { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+  .active-trip-info { flex: 1; min-width: 0; }
+  .active-trip-vehicle { font-size: 15px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .active-trip-meta { font-size: 12px; color: var(--text2); margin-top: 2px; }
+  .active-trip-purpose { display: inline-flex; align-items: center; padding: 2px 8px; border-radius: 6px; font-size: 10px; font-weight: 700; background: rgba(16,185,129,.15); color: var(--green); text-transform: uppercase; letter-spacing: .3px; margin-top: 6px; }
+  .active-trip-end-btn { flex-shrink: 0; background: var(--green); color: #fff; border: none; border-radius: 12px; padding: 10px 18px; font-size: 13px; font-weight: 800; cursor: pointer; transition: opacity .15s, transform .1s; white-space: nowrap; }
+  .active-trip-end-btn:active { opacity: .85; transform: scale(.97); }
+
+  /* START TRIP BUTTON (in trip modal) */
+  .start-trip-btn { width: 100%; display: flex; align-items: center; justify-content: center; gap: 8px; padding: 12px; border-radius: 12px; border: 1.5px dashed var(--green); background: rgba(16,185,129,.06); color: var(--green); font-size: 14px; font-weight: 700; cursor: pointer; margin-bottom: 14px; transition: background .2s; }
+  .start-trip-btn:active { background: rgba(16,185,129,.14); }
+  .start-trip-btn svg { width: 18px; height: 18px; flex-shrink: 0; }
+
+  /* SCAN BILL (Offline OCR) */
+  .scan-btn { width: 100%; display: flex; align-items: center; justify-content: center; gap: 8px; padding: 12px; border-radius: 12px; border: 1.5px dashed var(--amber); background: rgba(245,158,11,.06); color: var(--amber); font-size: 14px; font-weight: 700; cursor: pointer; margin-bottom: 14px; transition: background .2s; }
+  .scan-btn:active { background: rgba(245,158,11,.14); }
+  .scan-btn svg { width: 18px; height: 18px; flex-shrink: 0; }
+  .scan-btn[disabled] { opacity: .5; cursor: default; }
+
+  #modal-scan .modal { max-height: 88vh; }
+  .scan-stage { display: none; }
+  .scan-stage.active { display: block; }
+
+  .scan-drop-zone { border: 2px dashed var(--border); border-radius: 16px; padding: 28px 16px; text-align: center; cursor: pointer; transition: all .2s; margin-bottom: 14px; position: relative; }
+  .scan-drop-zone.drag-over { border-color: var(--amber); background: rgba(245,158,11,.06); }
+  .scan-drop-zone input[type=file] { position: absolute; inset: 0; opacity: 0; cursor: pointer; width: 100%; height: 100%; }
+  .scan-drop-icon { font-size: 36px; margin-bottom: 8px; }
+  .scan-drop-title { font-size: 14px; font-weight: 700; margin-bottom: 4px; }
+  .scan-drop-sub { font-size: 12px; color: var(--text3); }
+
+  .scan-action-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 14px; }
+  .scan-action-btn { display: flex; align-items: center; justify-content: center; gap: 6px; padding: 12px; border-radius: 12px; background: var(--bg3); border: 1.5px solid var(--border); color: var(--text); font-size: 13px; font-weight: 700; cursor: pointer; }
+  .scan-action-btn svg { width: 16px; height: 16px; }
+
+  .scan-preview-wrap { position: relative; border-radius: 14px; overflow: hidden; margin-bottom: 14px; background: var(--bg3); }
+  .scan-preview-img { width: 100%; max-height: 280px; object-fit: contain; display: block; background: #0a0a0a; }
+
+  .scan-progress { background: var(--bg3); border-radius: 12px; padding: 14px; margin-bottom: 14px; }
+  .scan-progress-label { font-size: 13px; font-weight: 700; color: var(--amber); margin-bottom: 8px; display: flex; align-items: center; gap: 8px; }
+  .scan-progress-bar-track { height: 6px; background: var(--bg); border-radius: 3px; overflow: hidden; }
+  .scan-progress-bar-fill { height: 100%; background: var(--amber); border-radius: 3px; transition: width .3s ease; width: 0%; }
+  .scan-progress-pct { font-size: 11px; color: var(--text3); margin-top: 6px; text-align: right; }
+
+  .scan-spinner { width: 16px; height: 16px; border: 2px solid rgba(245,158,11,.3); border-top-color: var(--amber); border-radius: 50%; animation: spin .8s linear infinite; flex-shrink: 0; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  .scan-result-grid { display: flex; flex-direction: column; gap: 8px; margin-bottom: 14px; }
+  .scan-result-row { display: flex; align-items: center; justify-content: space-between; background: var(--bg3); border-radius: 10px; padding: 10px 12px; gap: 10px; }
+  .scan-result-row.high { border-left: 3px solid var(--green); }
+  .scan-result-row.medium { border-left: 3px solid var(--amber); }
+  .scan-result-row.low { border-left: 3px solid var(--red); }
+  .scan-result-row.missing { border-left: 3px solid var(--text3); opacity: .6; }
+  .scan-result-label { font-size: 11px; font-weight: 700; color: var(--text3); text-transform: uppercase; letter-spacing: .4px; flex-shrink: 0; min-width: 76px; }
+  .scan-result-val { flex: 1; font-size: 14px; font-weight: 700; font-variant-numeric: tabular-nums; text-align: right; }
+  .scan-result-val.missing { color: var(--text3); font-weight: 400; font-style: italic; }
+  .scan-confidence-dot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
+  .scan-confidence-dot.high { background: var(--green); }
+  .scan-confidence-dot.medium { background: var(--amber); }
+  .scan-confidence-dot.low { background: var(--red); }
+  .scan-confidence-dot.missing { background: var(--text3); }
+
+  .scan-raw-toggle { font-size: 12px; color: var(--text3); text-decoration: underline; cursor: pointer; text-align: center; margin-bottom: 10px; }
+  .scan-raw-text { background: var(--bg); border: 1px solid var(--border); border-radius: 10px; padding: 10px 12px; font-size: 11px; font-family: monospace; color: var(--text3); white-space: pre-wrap; max-height: 140px; overflow-y: auto; margin-bottom: 14px; display: none; }
+  .scan-raw-text.visible { display: block; }
+
+  .scan-lib-status { font-size: 11px; color: var(--text3); text-align: center; margin-bottom: 10px; line-height: 1.5; }
+
+
+  /* FILTER BAR */
+  .filter-bar { display: flex; gap: 6px; overflow-x: auto; padding-bottom: 4px; margin-bottom: 16px; scrollbar-width: none; }
+  .filter-bar::-webkit-scrollbar { display: none; }
+  .filter-pill { flex-shrink: 0; padding: 6px 12px; border-radius: 16px; font-size: 12px; font-weight: 600; cursor: pointer; background: var(--bg2); color: var(--text3); border: 1.5px solid var(--border); transition: all .2s; }
+  .filter-pill.active { background: rgba(59,130,246,.15); color: var(--primary); border-color: var(--primary); }
+
+  /* TOAST */
+  #toast { position: fixed; top: 20px; left: 50%; transform: translateX(-50%) translateY(-80px); background: var(--bg3); border: 1px solid var(--border); border-radius: 12px; padding: 12px 20px; font-size: 14px; font-weight: 600; z-index: 999; transition: transform .3s cubic-bezier(.4,0,.2,1); white-space: normal; max-width: 88vw; text-align: center; box-shadow: 0 8px 32px rgba(0,0,0,.4); }
+  #toast.show { transform: translateX(-50%) translateY(0); }
+
+  /* SETTINGS ROWS */
+  .setting-row { background: var(--bg2); border-radius: 12px; padding: 14px 16px; display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; cursor: pointer; }
+  .setting-label { font-size: 14px; font-weight: 500; }
+  .setting-sub { font-size: 12px; color: var(--text2); margin-top: 2px; }
+  .setting-arrow { color: var(--text3); }
+
+  /* PROGRESS BAR */
+  .progress-bar { height: 4px; background: var(--bg3); border-radius: 2px; overflow: hidden; margin-top: 8px; }
+  .progress-fill { height: 100%; border-radius: 2px; transition: width .5s cubic-bezier(.4,0,.2,1); }
+
+  /* SWIPE DELETE hint */
+  .delete-btn { background: var(--red); color: white; border: none; border-radius: 8px; padding: 6px 12px; font-size: 12px; font-weight: 600; cursor: pointer; }
+
+  /* EXPENSE CATEGORY GRID */
+  .cat-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; margin-bottom: 12px; }
+  .cat-btn { display: flex; flex-direction: column; align-items: center; gap: 3px; padding: 8px 4px; border-radius: 10px; border: 1.5px solid var(--border); background: var(--bg3); cursor: pointer; transition: all .2s; }
+  .cat-btn.selected { border-color: var(--primary); background: rgba(59,130,246,.12); }
+  .cat-btn .cat-icon { font-size: 18px; line-height: 1; }
+  .cat-btn .cat-label { font-size: 9px; font-weight: 700; color: var(--text3); text-align: center; letter-spacing: .2px; text-transform: uppercase; }
+  .cat-btn.selected .cat-label { color: var(--primary); }
+
+  /* EXPENSE SUMMARY STRIP */
+  .exp-strip { display: flex; overflow-x: auto; gap: 8px; padding-bottom: 4px; margin-bottom: 16px; scrollbar-width: none; }
+  .exp-strip::-webkit-scrollbar { display: none; }
+  .exp-strip-item { flex-shrink: 0; background: var(--bg2); border-radius: 10px; padding: 10px 12px; text-align: center; min-width: 72px; }
+  .exp-strip-icon { font-size: 18px; line-height: 1; margin-bottom: 3px; }
+  .exp-strip-val { font-size: 12px; font-weight: 700; font-variant-numeric: tabular-nums; color: var(--text); }
+  .exp-strip-label { font-size: 9px; color: var(--text3); text-transform: uppercase; font-weight: 600; margin-top: 1px; }
+
+  /* COST BREAKDOWN DONUT (pure CSS) */
+  .breakdown-card { background: var(--bg2); border-radius: var(--card-radius); padding: 16px; margin-bottom: 12px; }
+  .breakdown-list { display: flex; flex-direction: column; gap: 10px; }
+  .breakdown-row { display: flex; align-items: center; gap: 10px; }
+  .breakdown-dot { width: 10px; height: 10px; border-radius: 3px; flex-shrink: 0; }
+  .breakdown-name { flex: 1; font-size: 13px; color: var(--text2); }
+  .breakdown-bar-wrap { flex: 2; height: 6px; background: var(--bg3); border-radius: 3px; overflow: hidden; }
+  .breakdown-bar-fill { height: 100%; border-radius: 3px; transition: width .6s cubic-bezier(.4,0,.2,1); }
+  .breakdown-val { font-size: 13px; font-weight: 700; font-variant-numeric: tabular-nums; min-width: 60px; text-align: right; }
+
+  /* ENTRY DOT COLORS for expense categories */
+  .entry-dot.toll     { background: rgba(251,191,36,.15);  color: #FBBF24; }
+  .entry-dot.parking  { background: rgba(99,102,241,.15);  color: #6366F1; }
+  .entry-dot.repair   { background: rgba(239,68,68,.15);   color: var(--red); }
+  .entry-dot.service  { background: rgba(16,185,129,.15);  color: var(--green); }
+  .entry-dot.insurance{ background: rgba(59,130,246,.15);  color: var(--primary); }
+  .entry-dot.tire     { background: rgba(107,114,128,.15); color: #6B7280; }
+  .entry-dot.battery  { background: rgba(234,179,8,.15);   color: #EAB308; }
+  .entry-dot.accessory{ background: rgba(236,72,153,.15);  color: #EC4899; }
+  .entry-dot.other    { background: rgba(139,92,246,.15);  color: var(--purple); }
+
+  /* PULL TO REFRESH */
+  .ptr-indicator { position: fixed; top: 0; left: 50%; transform: translateX(-50%) translateY(-64px); z-index: 300; background: var(--bg2); border: 1px solid var(--border); border-radius: 50%; width: 40px; height: 40px; display: flex; align-items: center; justify-content: center; box-shadow: 0 4px 16px rgba(0,0,0,.3); pointer-events: none; }
+  .ptr-indicator.pulling { transition: none; }
+  .ptr-indicator.releasing { transition: transform .3s cubic-bezier(.4,0,.2,1); }
+  .ptr-indicator.refreshing { transform: translateX(-50%) translateY(16px) !important; transition: transform .3s cubic-bezier(.4,0,.2,1); }
+  .ptr-arrow { width: 18px; height: 18px; color: var(--primary); transition: transform .25s; }
+  .ptr-spinner { width: 18px; height: 18px; border: 2px solid rgba(59,130,246,.3); border-top-color: var(--primary); border-radius: 50%; animation: spin .7s linear infinite; display: none; }
+  .ptr-indicator.refreshing .ptr-arrow { display: none; }
+  .ptr-indicator.refreshing .ptr-spinner { display: block; }
+
+  @media (min-width: 480px) {
+    .page { max-width: 480px; margin: 0 auto; }
+    #nav { max-width: 480px; margin: 0 auto; left: 50%; transform: translateX(-50%); }
+    .fab { right: calc(50% - 240px + 20px); }
+  }
+</style>
+</head>
+<body>
+
+<div id="app">
+  <!-- DASHBOARD -->
+  <div class="page active" id="page-dashboard">
+    <div class="page-header">
+      <div>
+        <div class="page-title">FuelLog</div>
+        <div class="page-sub" id="dash-date">Loading...</div>
+      </div>
+      <div style="display:flex;align-items:center;gap:8px">
+        <div onclick="toggleTheme()" style="width:36px;height:36px;border-radius:10px;background:var(--bg2);border:1.5px solid var(--border);display:flex;align-items:center;justify-content:center;cursor:pointer;color:var(--text2)" title="Toggle light/dark mode" id="dash-theme-btn">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16" id="dash-theme-icon"><path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"/></svg>
+        </div>
+        <div style="display:flex;align-items:center;gap:6px;background:var(--bg2);border:1.5px solid var(--border);border-radius:10px;padding:7px 10px;cursor:pointer;color:var(--text2)" onclick="showPage('settings')">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="15" height="15"><line x1="4" y1="6" x2="20" y2="6"/><line x1="4" y1="12" x2="20" y2="12"/><line x1="4" y1="18" x2="20" y2="18"/><circle cx="9" cy="6" r="2" fill="var(--bg2)"/><circle cx="15" cy="12" r="2" fill="var(--bg2)"/><circle cx="9" cy="18" r="2" fill="var(--bg2)"/></svg>
+          <span style="font-size:11px;font-weight:700;letter-spacing:.3px">SETTINGS</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="vehicle-scroll" id="dash-vehicles"></div>
+
+    <!-- Sample data notice — shown only while seed data is present -->
+    <div id="sample-banner" style="background:linear-gradient(135deg,rgba(245,158,11,.12),rgba(245,158,11,.06));border:1.5px solid rgba(245,158,11,.3);border-radius:14px;padding:12px 14px;margin-bottom:16px;align-items:center;gap:10px">
+      <div style="font-size:22px;flex-shrink:0">👋</div>
+      <div style="flex:1;min-width:0">
+        <div style="font-size:13px;font-weight:700;color:var(--amber)">Sample data loaded</div>
+        <div style="font-size:11px;color:var(--text2);margin-top:2px;line-height:1.4">This is demo data. Clear it before adding your own entries.</div>
+      </div>
+      <button onclick="clearSampleData()" style="flex-shrink:0;background:var(--amber);color:#000;border:none;border-radius:8px;padding:7px 12px;font-size:12px;font-weight:800;cursor:pointer;white-space:nowrap">Clear&nbsp;Demo</button>
+    </div>
+
+    <!-- Backup reminder — shown periodically based on last backup date -->
+    <div id="backup-banner" style="display:none;background:linear-gradient(135deg,rgba(59,130,246,.12),rgba(59,130,246,.06));border:1.5px solid rgba(59,130,246,.3);border-radius:14px;padding:12px 14px;margin-bottom:16px;align-items:center;gap:10px">
+      <div style="font-size:22px;flex-shrink:0">🛡️</div>
+      <div style="flex:1;min-width:0">
+        <div style="font-size:13px;font-weight:700;color:var(--primary)" id="backup-banner-title">Back up your data</div>
+        <div style="font-size:11px;color:var(--text2);margin-top:2px;line-height:1.4" id="backup-banner-sub">Your data only lives in this browser. Save a copy somewhere safe.</div>
+      </div>
+      <button onclick="shareBackup()" style="flex-shrink:0;background:var(--primary);color:#fff;border:none;border-radius:8px;padding:7px 12px;font-size:12px;font-weight:800;cursor:pointer;white-space:nowrap">Back&nbsp;Up</button>
+    </div>
+
+    <!-- Active/in-progress trip — shown only when a trip is running -->
+    <div id="active-trip-section"></div>
+
+    <div id="dash-odo"></div>
+
+    <div id="dash-stats" style="margin-bottom:20px"></div>
+
+    <div class="insight-row" id="dash-insights"></div>
+
+    <div class="chart-card">
+      <div class="chart-title">Monthly Total Cost (₹)</div>
+      <div id="chart-fuel"></div>
+    </div>
+    <div class="chart-card" style="margin-bottom:12px">
+      <div class="chart-title">Monthly Distance (km)</div>
+      <div id="chart-dist"></div>
+    </div>
+    <div class="chart-card" style="margin-bottom:12px">
+      <div class="chart-title">Mileage Trend (km/l)</div>
+      <div id="chart-mileage"></div>
+    </div>
+
+    <div class="section-title">Lifetime Summary</div>
+    <div id="dash-lifetime" style="margin-bottom:20px"></div>
+
+    <div class="section-title">Recent Activity</div>
+    <div class="entry-list" id="dash-recent"></div>
+
+    <div style="height:8px"></div>
+  </div>
+
+  <!-- FUEL LOG -->
+  <div class="page" id="page-fuel">
+    <div class="page-header">
+      <div>
+        <div class="page-title">Fuel Log</div>
+        <div class="page-sub" id="fuel-count">0 entries</div>
+      </div>
+      <div class="select-mode-btn" id="fuel-select-btn" onclick="toggleSelectMode('fuel')">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+        Select
+      </div>
+    </div>
+    <div class="vehicle-scroll" id="fuel-vehicles"></div>
+    <div class="filter-bar">
+      <div class="filter-pill active" data-filter="all" onclick="setFuelFilter(this,'all')">All Time</div>
+      <div class="filter-pill" data-filter="7" onclick="setFuelFilter(this,7)">7 Days</div>
+      <div class="filter-pill" data-filter="30" onclick="setFuelFilter(this,30)">30 Days</div>
+      <div class="filter-pill" data-filter="90" onclick="setFuelFilter(this,90)">90 Days</div>
+      <div class="filter-pill" data-filter="365" onclick="setFuelFilter(this,365)">This Year</div>
+    </div>
+    <div class="entry-list" id="fuel-list"></div>
+    <div style="height:8px"></div>
+  </div>
+
+  <!-- TRIPS -->
+  <div class="page" id="page-trips">
+    <div class="page-header">
+      <div>
+        <div class="page-title">Trip Log</div>
+        <div class="page-sub" id="trips-count">0 entries</div>
+      </div>
+      <div class="select-mode-btn" id="trips-select-btn" onclick="toggleSelectMode('trips')">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+        Select
+      </div>
+    </div>
+    <div class="vehicle-scroll" id="trips-vehicles"></div>
+    <div class="filter-bar">
+      <div class="filter-pill active" data-filter="all" onclick="setTripFilter(this,'all')">All</div>
+      <div class="filter-pill" data-filter="personal" onclick="setTripFilter(this,'personal')">Personal</div>
+      <div class="filter-pill" data-filter="office" onclick="setTripFilter(this,'office')">Office</div>
+      <div class="filter-pill" data-filter="business" onclick="setTripFilter(this,'business')">Business</div>
+      <div class="filter-pill" data-filter="other" onclick="setTripFilter(this,'other')">Other</div>
+    </div>
+
+    <div class="breakdown-card">
+      <div class="chart-title">Distance by Purpose</div>
+      <div class="breakdown-list" id="trip-purpose-breakdown"></div>
+    </div>
+
+    <div class="entry-list" id="trips-list"></div>
+    <div style="height:8px"></div>
+  </div>
+
+  <!-- VEHICLES -->
+  <div class="page" id="page-vehicles">
+    <div class="page-header">
+      <div class="page-title">My Vehicles</div>
+    </div>
+    <div id="vehicles-list"></div>
+    <div style="height:8px"></div>
+  </div>
+
+  <!-- EXPENSES -->
+  <div class="page" id="page-expenses">
+    <div class="page-header">
+      <div>
+        <div class="page-title">Expenses</div>
+        <div class="page-sub" id="exp-count">0 entries</div>
+      </div>
+      <div style="display:flex;align-items:center;gap:8px">
+        <div class="select-mode-btn" id="expenses-select-btn" onclick="toggleSelectMode('expenses')">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+          Select
+        </div>
+        <div id="exp-month-total" style="text-align:right">
+          <div style="font-size:11px;color:var(--text3);text-transform:uppercase;font-weight:600">This Month</div>
+          <div id="exp-month-val" style="font-size:20px;font-weight:800;font-variant-numeric:tabular-nums;color:var(--purple)">₹0</div>
+        </div>
+      </div>
+    </div>
+    <div class="exp-strip" id="exp-cat-strip"></div>
+    <div class="vehicle-scroll" id="exp-vehicles"></div>
+    <div class="filter-bar">
+      <div class="filter-pill active" data-filter="all" onclick="setExpFilter(this,'all')">All Time</div>
+      <div class="filter-pill" data-filter="7"   onclick="setExpFilter(this,7)">7 Days</div>
+      <div class="filter-pill" data-filter="30"  onclick="setExpFilter(this,30)">30 Days</div>
+      <div class="filter-pill" data-filter="90"  onclick="setExpFilter(this,90)">90 Days</div>
+      <div class="filter-pill" data-filter="365" onclick="setExpFilter(this,365)">This Year</div>
+    </div>
+    <div class="breakdown-card">
+      <div class="chart-title">Spend by Category</div>
+      <div class="breakdown-list" id="exp-breakdown-list"></div>
+    </div>
+    <div class="section-title">All Entries</div>
+    <div class="entry-list" id="exp-list"></div>
+    <div style="height:8px"></div>
+  </div>
+
+  <!-- SETTINGS -->
+  <div class="page" id="page-settings">
+    <div class="page-header">
+      <div class="page-title">Settings</div>
+    </div>
+
+    <div class="section-title" style="margin-bottom:8px">Appearance</div>
+    <div class="theme-toggle-row">
+      <div>
+        <div class="setting-label">Light Mode</div>
+        <div class="setting-sub" id="theme-sub">Currently using dark mode</div>
+      </div>
+      <div class="toggle-track" id="theme-toggle" onclick="toggleTheme()">
+        <div class="toggle-thumb"></div>
+      </div>
+    </div>
+
+    <div class="section-title" style="margin-top:20px;margin-bottom:8px">Backup &amp; Restore</div>
+    <div class="setting-row" style="cursor:default" id="backup-status-row">
+      <div>
+        <div class="setting-label">Last Backup</div>
+        <div class="setting-sub" id="last-backup-sub">Never backed up</div>
+      </div>
+    </div>
+    <div class="setting-row" onclick="shareBackup()">
+      <div><div class="setting-label">Share / Save Backup</div><div class="setting-sub" id="share-support-sub">Send to Drive, WhatsApp, Email, Files…</div></div>
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="setting-arrow"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg>
+    </div>
+    <div class="setting-row" onclick="exportData('json')">
+      <div><div class="setting-label">Download Backup (JSON)</div><div class="setting-sub">Save file to your device</div></div>
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="setting-arrow"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>
+    </div>
+    <div class="setting-row" onclick="exportData('csv')">
+      <div><div class="setting-label">Export CSV</div><div class="setting-sub">Fuel entries as spreadsheet</div></div>
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="setting-arrow"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>
+    </div>
+    <div class="setting-row" onclick="document.getElementById('import-file').click()">
+      <div><div class="setting-label">Import Backup</div><div class="setting-sub">Restore from JSON backup</div></div>
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="setting-arrow"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M17 8l-5-5-5 5M12 3v12"/></svg>
+    </div>
+    <input type="file" id="import-file" accept=".json" style="display:none" onchange="importData(this)">
+
+    <div class="setting-row" style="cursor:default;flex-direction:column;align-items:stretch;gap:10px">
+      <div class="setting-label">Backup Reminder</div>
+      <div style="display:flex;gap:6px" id="backup-freq-row"></div>
+    </div>
+
+    <div class="section-title" style="margin-top:20px;margin-bottom:8px">Bill Scanning (Offline OCR)</div>
+    <div class="setting-row" style="cursor:default">
+      <div><div class="setting-label">Scan Archive</div><div class="setting-sub" id="ocr-archive-status">Checking…</div></div>
+    </div>
+    <div class="setting-row" onclick="confirmClearOCRArchive()">
+      <div><div class="setting-label" style="color:var(--red)">Clear Scan Archive</div><div class="setting-sub">Delete all saved receipt scans</div></div>
+    </div>
+
+    <div class="section-title" style="margin-top:20px;margin-bottom:8px">About</div>
+    <div class="setting-row" style="cursor:default">
+      <div><div class="setting-label">FuelLog</div><div class="setting-sub">v1.0 · Privacy-first · Data stays on your device</div></div>
+    </div>
+    <div class="setting-row" onclick="clearAllData()">
+      <div><div class="setting-label" style="color:var(--red)">Clear All Data</div><div class="setting-sub">Permanently delete everything</div></div>
+    </div>
+  </div>
+</div>
+
+<!-- BOTTOM NAV -->
+<nav id="nav">
+  <button class="nav-btn active" id="nav-dashboard" onclick="showPage('dashboard')">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
+    <span>Dashboard</span>
+  </button>
+  <button class="nav-btn" id="nav-fuel" onclick="showPage('fuel')">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 22V8l6-6h8l4 4v16"/><path d="M3 14h12M7 22V14M11 22V14"/><path d="M17 8h2a2 2 0 012 2v4l-2 2"/></svg>
+    <span>Fuel</span>
+  </button>
+  <button class="nav-btn" id="nav-trips" onclick="showPage('trips')">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+    <span>Trips</span>
+  </button>
+  <button class="nav-btn" id="nav-expenses" onclick="showPage('expenses')">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 4H3a1 1 0 00-1 1v14a1 1 0 001 1h18a1 1 0 001-1V5a1 1 0 00-1-1z"/><path d="M1 10h22"/><path d="M12 15h3M7 15h1"/></svg>
+    <span>Expenses</span>
+  </button>
+  <button class="nav-btn" id="nav-vehicles" onclick="showPage('vehicles')">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="1" y="3" width="15" height="13" rx="2"/><path d="M16 8h4l3 5v3h-7V8z"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/></svg>
+    <span>Vehicles</span>
+  </button>
+</nav>
+
+<!-- FAB -->
+<button class="fab" id="fab" onclick="openAddModal()">
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+</button>
+
+<!-- MODALS -->
+<!-- Add type chooser -->
+<div class="modal-overlay" id="modal-choose">
+  <div class="modal">
+    <div class="modal-handle-area"><div class="modal-handle"></div></div>
+    <div class="modal-header"><div class="modal-title">Add Entry</div></div>
+    <div class="modal-body" style="padding-bottom:8px">
+      <div style="display:flex;flex-direction:column;gap:10px">
+        <button class="btn btn-ghost" style="text-align:left;display:flex;align-items:center;gap:12px;justify-content:flex-start" onclick="closeModal('modal-choose');openFuelModal()">
+          <div style="width:36px;height:36px;border-radius:10px;background:rgba(245,158,11,.2);color:var(--amber);display:flex;align-items:center;justify-content:center">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18"><path d="M3 22V8l6-6h8l4 4v16"/><path d="M17 8h2a2 2 0 012 2v4l-2 2"/></svg>
+          </div>
+          <div><div style="font-size:15px;font-weight:600">Fuel Entry</div><div style="font-size:12px;color:var(--text2)">Log a refuel</div></div>
+        </button>
+        <button class="btn btn-ghost" style="text-align:left;display:flex;align-items:center;gap:12px;justify-content:flex-start" onclick="closeModal('modal-choose');openTripModal()">
+          <div style="width:36px;height:36px;border-radius:10px;background:rgba(59,130,246,.2);color:var(--primary);display:flex;align-items:center;justify-content:center">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+          </div>
+          <div><div style="font-size:15px;font-weight:600">Trip Entry</div><div style="font-size:12px;color:var(--text2)">Log a journey</div></div>
+        </button>
+        <button class="btn btn-ghost" style="text-align:left;display:flex;align-items:center;gap:12px;justify-content:flex-start" onclick="closeModal('modal-choose');openExpenseModal()">
+          <div style="width:36px;height:36px;border-radius:10px;background:rgba(139,92,246,.2);color:var(--purple);display:flex;align-items:center;justify-content:center">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18"><path d="M21 4H3a1 1 0 00-1 1v14a1 1 0 001 1h18a1 1 0 001-1V5a1 1 0 00-1-1z"/><path d="M1 10h22"/></svg>
+          </div>
+          <div><div style="font-size:15px;font-weight:600">Other Expense</div><div style="font-size:12px;color:var(--text2)">Toll, parking, repair, service…</div></div>
+        </button>
+        <button class="btn btn-ghost" style="text-align:left;display:flex;align-items:center;gap:12px;justify-content:flex-start" onclick="closeModal('modal-choose');openVehicleModal()">
+          <div style="width:36px;height:36px;border-radius:10px;background:rgba(16,185,129,.2);color:var(--green);display:flex;align-items:center;justify-content:center">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18"><rect x="1" y="3" width="15" height="13" rx="2"/><path d="M16 8h4l3 5v3h-7V8z"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/></svg>
+          </div>
+          <div><div style="font-size:15px;font-weight:600">Add Vehicle</div><div style="font-size:12px;color:var(--text2)">Register a new vehicle</div></div>
+        </button>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal('modal-choose')">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<!-- Fuel Modal -->
+<div class="modal-overlay" id="modal-fuel">
+  <div class="modal">
+    <div class="modal-handle-area"><div class="modal-handle"></div></div>
+    <div class="modal-header"><div class="modal-title" id="fuel-modal-title">Fuel Entry</div></div>
+    <div class="modal-body">
+      <input type="hidden" id="fuel-edit-id">
+      <button class="scan-btn" onclick="openScanModal()" id="scan-bill-btn">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M23 19a2 2 0 01-2 2H3a2 2 0 01-2-2V8a2 2 0 012-2h4l2-3h6l2 3h4a2 2 0 012 2z"/><circle cx="12" cy="13" r="4"/></svg>
+        Scan Fuel Bill (offline OCR)
+      </button>
+      <div class="form-group">
+        <label class="form-label">Vehicle</label>
+        <select class="form-input form-select" id="fuel-vehicle"></select>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">Date</label>
+          <input type="date" class="form-input" id="fuel-date">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Odometer (km)</label>
+          <input type="number" class="form-input" id="fuel-odo" placeholder="0" oninput="calcMileage()">
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">Litres</label>
+          <input type="number" class="form-input" id="fuel-litres" placeholder="0.00" step="0.01" oninput="calcFuelPrice()">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Total Cost (₹)</label>
+          <input type="number" class="form-input" id="fuel-cost" placeholder="0" oninput="calcFuelPrice()">
+        </div>
+      </div>
+      <div id="fuel-price-hint" style="margin-bottom:12px"></div>
+      <div class="form-group">
+        <label class="form-label">Fuel Station (optional)</label>
+        <input type="text" class="form-input" id="fuel-station" placeholder="HP, Indian Oil, BPCL...">
+      </div>
+      <div class="form-group">
+        <label class="checkbox-row">
+          <input type="checkbox" id="fuel-fulltank">
+          <span class="checkbox-label">Full Tank</span>
+        </label>
+      </div>
+      <div id="mileage-hint" style="margin-bottom:12px"></div>
+      <div class="form-group">
+        <label class="form-label">Notes</label>
+        <textarea class="form-input" id="fuel-notes" placeholder="Optional notes..."></textarea>
+      </div>
+      <div id="fuel-delete-btn" style="display:none;margin-bottom:4px">
+        <button class="btn btn-danger" onclick="deleteFuelEntry()">Delete Entry</button>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <div class="btn-row" style="margin-top:0">
+        <button class="btn btn-ghost" onclick="closeModal('modal-fuel')">Cancel</button>
+        <button class="btn btn-primary" onclick="saveFuelEntry()">Save Entry</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Trip Modal -->
+<div class="modal-overlay" id="modal-trip">
+  <div class="modal">
+    <div class="modal-handle-area"><div class="modal-handle"></div></div>
+    <div class="modal-header"><div class="modal-title" id="trip-modal-title">Trip Entry</div></div>
+    <div class="modal-body">
+      <input type="hidden" id="trip-edit-id">
+
+      <!-- Start Trip shortcut — only shown for new trip entries -->
+      <button class="start-trip-btn" onclick="startLiveTrip()" id="start-trip-btn">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polygon points="10 8 16 12 10 16 10 8"/></svg>
+        Start Trip Now (track live)
+      </button>
+
+      <div class="form-group">
+        <label class="form-label">Vehicle</label>
+        <select class="form-input form-select" id="trip-vehicle" onchange="prefillTripStartOdo()"></select>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Date</label>
+        <input type="date" class="form-input" id="trip-date">
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">Start Odometer</label>
+          <input type="number" class="form-input" id="trip-start" placeholder="0" oninput="calcTripDist()">
+        </div>
+        <div class="form-group" id="trip-end-group">
+          <label class="form-label">End Odometer</label>
+          <input type="number" class="form-input" id="trip-end" placeholder="0" oninput="calcTripDist()">
+        </div>
+      </div>
+      <div id="trip-dist-hint" style="margin-bottom:12px"></div>
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">From <span style="color:var(--text3);text-transform:none;font-weight:400">(optional)</span></label>
+          <input type="text" class="form-input" id="trip-source" placeholder="e.g. Home">
+        </div>
+        <div class="form-group">
+          <label class="form-label">To <span style="color:var(--text3);text-transform:none;font-weight:400">(optional)</span></label>
+          <input type="text" class="form-input" id="trip-destination" placeholder="e.g. Office">
+        </div>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Purpose</label>
+        <select class="form-input form-select" id="trip-purpose">
+          <option value="personal">Personal</option>
+          <option value="office">Office / Commute</option>
+          <option value="business">Business</option>
+          <option value="other">Other</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Notes</label>
+        <textarea class="form-input" id="trip-notes" placeholder="Optional notes..."></textarea>
+      </div>
+      <div id="trip-delete-btn" style="display:none;margin-bottom:4px">
+        <button class="btn btn-danger" onclick="deleteTripEntry()">Delete Trip</button>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <div class="btn-row" style="margin-top:0">
+        <button class="btn btn-ghost" onclick="closeModal('modal-trip')">Cancel</button>
+        <button class="btn btn-primary" id="trip-save-btn" onclick="saveTripEntry()">Save Entry</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- End Trip Modal — lightweight, only asks for end odometer -->
+<div class="modal-overlay" id="modal-end-trip">
+  <div class="modal">
+    <div class="modal-handle-area"><div class="modal-handle"></div></div>
+    <div class="modal-header"><div class="modal-title">End Trip</div></div>
+    <div class="modal-body">
+      <input type="hidden" id="end-trip-id">
+      <div id="end-trip-summary" style="background:var(--bg3);border-radius:12px;padding:12px 14px;margin-bottom:16px"></div>
+      <div class="form-group">
+        <label class="form-label">End Odometer (km)</label>
+        <input type="number" class="form-input" id="end-trip-odo" placeholder="0" oninput="calcEndTripDist()">
+      </div>
+      <div id="end-trip-dist-hint" style="margin-bottom:12px"></div>
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">From <span style="color:var(--text3);text-transform:none;font-weight:400">(optional)</span></label>
+          <input type="text" class="form-input" id="end-trip-source" placeholder="e.g. Home">
+        </div>
+        <div class="form-group">
+          <label class="form-label">To <span style="color:var(--text3);text-transform:none;font-weight:400">(optional)</span></label>
+          <input type="text" class="form-input" id="end-trip-destination" placeholder="e.g. Office">
+        </div>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Purpose</label>
+        <select class="form-input form-select" id="end-trip-purpose">
+          <option value="personal">Personal</option>
+          <option value="office">Office / Commute</option>
+          <option value="business">Business</option>
+          <option value="other">Other</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Notes</label>
+        <textarea class="form-input" id="end-trip-notes" placeholder="Optional notes..."></textarea>
+      </div>
+      <div style="margin-bottom:4px">
+        <button class="btn btn-danger" onclick="cancelLiveTrip()" style="font-size:13px">Discard Trip</button>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <div class="btn-row" style="margin-top:0">
+        <button class="btn btn-ghost" onclick="closeModal('modal-end-trip')">Keep Running</button>
+        <button class="btn btn-primary" onclick="finishLiveTrip()">End Trip</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Scan Bill Modal — offline OCR via Tesseract.js + OpenCV.js -->
+<div class="modal-overlay" id="modal-scan">
+  <div class="modal">
+    <div class="modal-handle-area"><div class="modal-handle"></div></div>
+    <div class="modal-header"><div class="modal-title">Scan Fuel Bill</div></div>
+    <div class="modal-body">
+
+      <!-- Stage 1: capture -->
+      <div class="scan-stage active" id="scan-stage-capture">
+        <p style="font-size:13px;color:var(--text2);margin-bottom:14px;line-height:1.6">Works fully offline. Take a photo or pick an image of your receipt — text is read locally on your device, nothing is uploaded.</p>
+        <div class="scan-action-row">
+          <button class="scan-action-btn" onclick="document.getElementById('scan-camera-input').click()">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M23 19a2 2 0 01-2 2H3a2 2 0 01-2-2V8a2 2 0 012-2h4l2-3h6l2 3h4a2 2 0 012 2z"/><circle cx="12" cy="13" r="4"/></svg>
+            Camera
+          </button>
+          <button class="scan-action-btn" onclick="document.getElementById('scan-gallery-input').click()">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
+            Gallery
+          </button>
+        </div>
+        <input type="file" id="scan-camera-input" accept="image/*" capture="environment" style="display:none" onchange="handleScanFile(this)">
+        <input type="file" id="scan-gallery-input" accept="image/*" style="display:none" onchange="handleScanFile(this)">
+        <div class="scan-drop-zone" id="scan-drop-zone">
+          <input type="file" id="scan-file-input" accept="image/*" onchange="handleScanFile(this)">
+          <div class="scan-drop-icon">📄</div>
+          <div class="scan-drop-title">or drop an image here</div>
+          <div class="scan-drop-sub">Receipt, pump screen, or printed bill</div>
+        </div>
+        <div class="scan-lib-status" id="scan-lib-status"></div>
+      </div>
+
+      <!-- Stage 2: processing -->
+      <div class="scan-stage" id="scan-stage-processing">
+        <div class="scan-preview-wrap">
+          <img class="scan-preview-img" id="scan-preview-img" alt="Receipt preview">
+        </div>
+        <div class="scan-progress">
+          <div class="scan-progress-label"><div class="scan-spinner"></div><span id="scan-progress-text">Loading OCR engine…</span></div>
+          <div class="scan-progress-bar-track"><div class="scan-progress-bar-fill" id="scan-progress-fill"></div></div>
+          <div class="scan-progress-pct" id="scan-progress-pct"></div>
+        </div>
+      </div>
+
+      <!-- Stage 3: results -->
+      <div class="scan-stage" id="scan-stage-results">
+        <div class="scan-preview-wrap" style="max-height:140px">
+          <img class="scan-preview-img" id="scan-result-img" alt="Receipt" style="max-height:140px">
+        </div>
+        <div class="scan-result-grid" id="scan-result-grid"></div>
+        <div class="scan-raw-toggle" onclick="toggleScanRawText()" id="scan-raw-toggle">Show raw OCR text</div>
+        <pre class="scan-raw-text" id="scan-raw-text"></pre>
+      </div>
+
+    </div>
+    <div class="modal-footer">
+      <div class="btn-row" style="margin-top:0" id="scan-footer-capture">
+        <button class="btn btn-ghost" onclick="closeModal('modal-scan')">Cancel</button>
+      </div>
+      <div class="btn-row" style="margin-top:0;display:none" id="scan-footer-results">
+        <button class="btn btn-ghost" onclick="resetScanToCapture()">Scan Again</button>
+        <button class="btn btn-primary" onclick="applyScanToForm()">Use These Values</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Vehicle Modal -->
+<div class="modal-overlay" id="modal-vehicle">
+  <div class="modal">
+    <div class="modal-handle-area"><div class="modal-handle"></div></div>
+    <div class="modal-header"><div class="modal-title" id="vehicle-modal-title">Add Vehicle</div></div>
+    <div class="modal-body">
+      <input type="hidden" id="vehicle-edit-id">
+      <div class="form-group">
+        <label class="form-label">Vehicle Name</label>
+        <input type="text" class="form-input" id="v-name" placeholder="Honda City, Activa 125...">
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">Type</label>
+          <select class="form-input form-select" id="v-type">
+            <option value="car">🚗 Car</option>
+            <option value="bike">🏍 Bike</option>
+            <option value="scooter">🛵 Scooter</option>
+            <option value="ev">⚡ EV</option>
+            <option value="other">🚌 Other</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Fuel Type</label>
+          <select class="form-input form-select" id="v-fuel">
+            <option value="petrol">Petrol</option>
+            <option value="diesel">Diesel</option>
+            <option value="cng">CNG</option>
+            <option value="electric">Electric</option>
+          </select>
+        </div>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Registration Number</label>
+        <input type="text" class="form-input" id="v-reg" placeholder="MH 01 AB 1234" style="text-transform:uppercase">
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">Current Odometer</label>
+          <input type="number" class="form-input" id="v-odo" placeholder="km">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Purchase Date</label>
+          <input type="date" class="form-input" id="v-date">
+        </div>
+      </div>
+      <div id="vehicle-delete-btn" style="display:none;margin-bottom:4px">
+        <button class="btn btn-danger" onclick="deleteVehicle()">Remove Vehicle</button>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <div class="btn-row" style="margin-top:0">
+        <button class="btn btn-ghost" onclick="closeModal('modal-vehicle')">Cancel</button>
+        <button class="btn btn-primary" onclick="saveVehicle()">Save Vehicle</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Expense Modal -->
+<div class="modal-overlay" id="modal-expense">
+  <div class="modal">
+    <div class="modal-handle-area"><div class="modal-handle"></div></div>
+    <div class="modal-header"><div class="modal-title" id="exp-modal-title">Add Expense</div></div>
+    <div class="modal-body">
+      <input type="hidden" id="exp-edit-id">
+      <div class="form-label" style="margin-bottom:8px">Category</div>
+      <div class="cat-grid" id="exp-cat-grid"></div>
+      <div class="form-group">
+        <label class="form-label">Vehicle</label>
+        <select class="form-input form-select" id="exp-vehicle"></select>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">Date</label>
+          <input type="date" class="form-input" id="exp-date">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Amount (₹)</label>
+          <input type="number" class="form-input" id="exp-amount" placeholder="0">
+        </div>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Description</label>
+        <input type="text" class="form-input" id="exp-desc" placeholder="Brief description…">
+      </div>
+      <div class="form-group" id="exp-vendor-group">
+        <label class="form-label" id="exp-vendor-label">Vendor / Location</label>
+        <input type="text" class="form-input" id="exp-vendor" placeholder="e.g. Bosch Service Centre">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Notes</label>
+        <textarea class="form-input" id="exp-notes" placeholder="Optional details…"></textarea>
+      </div>
+      <div id="exp-delete-btn" style="display:none;margin-bottom:4px">
+        <button class="btn btn-danger" onclick="deleteExpenseEntry()">Delete Expense</button>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <div class="btn-row" style="margin-top:0">
+        <button class="btn btn-ghost" onclick="closeModal('modal-expense')">Cancel</button>
+        <button class="btn btn-primary" onclick="saveExpenseEntry()">Save Expense</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Scan Bill Modal -->
+<!-- Floating multi-select bar -->
+<div id="select-bar">
+  <span id="select-bar-cancel" onclick="exitSelectMode()">Cancel</span>
+  <span id="select-bar-label">0 selected</span>
+  <span id="select-bar-all" onclick="selectAll()">All</span>
+  <button id="select-bar-delete" onclick="deleteSelected()" disabled>Delete</button>
+</div>
+
+<!-- App update notification -->
+<div id="update-bar" style="display:none;position:fixed;top:0;left:0;right:0;z-index:1000;background:var(--primary);color:white;padding:12px 16px;display:none;align-items:center;gap:10px;box-shadow:0 4px 20px rgba(0,0,0,.4)">
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18" style="flex-shrink:0"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 .49-3.51"/></svg>
+  <span style="flex:1;font-size:13px;font-weight:600">New version available</span>
+  <button onclick="applyUpdate()" style="background:white;color:var(--primary);border:none;border-radius:8px;padding:6px 14px;font-size:13px;font-weight:800;cursor:pointer">Reload</button>
+  <button onclick="document.getElementById('update-bar').style.display='none'" style="background:none;border:none;color:rgba(255,255,255,.7);font-size:20px;cursor:pointer;padding:0 4px;line-height:1">&times;</button>
+</div>
+
+<!-- Pull-to-refresh indicator -->
+<div class="ptr-indicator" id="ptr-indicator">
+  <svg class="ptr-arrow" id="ptr-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"/></svg>
+  <div class="ptr-spinner" id="ptr-spinner"></div>
+</div>
+
+<!-- Toast -->
+<div id="toast">Saved!</div>
+
+<script>
+// ─── DATA LAYER ───────────────────────────────────────────────
+const DB = {
+  get(key, def) { try { return JSON.parse(localStorage.getItem(key)) ?? def; } catch { return def; } },
+  set(key, val) { localStorage.setItem(key, JSON.stringify(val)); }
+};
+
+let vehicles = DB.get('fl_vehicles', []);
+let fuelEntries = DB.get('fl_fuel', []);
+let tripEntries = DB.get('fl_trips', []);
+let expenseEntries = DB.get('fl_expenses', []);
+
+let dashVehicleId = null;
+let fuelVehicleId = null;
+let tripVehicleId = null;
+let expVehicleId = null;
+let fuelFilter = 'all';
+let tripFilter = 'all';
+let expFilter = 'all';
+let expCatFilter = 'all';
+
+// ─── EXPENSE CATEGORIES ───────────────────────────────────────
+const EXP_CATS = [
+  { id:'toll',      label:'Toll',      icon:'🛣️',  color:'#FBBF24', vendorLabel:'Toll Plaza' },
+  { id:'parking',   label:'Parking',   icon:'🅿️',  color:'#6366F1', vendorLabel:'Location' },
+  { id:'repair',    label:'Repair',    icon:'🔧',  color:'#EF4444', vendorLabel:'Garage / Mechanic' },
+  { id:'service',   label:'Service',   icon:'🛠️',  color:'#10B981', vendorLabel:'Service Centre' },
+  { id:'insurance', label:'Insurance', icon:'🛡️',  color:'#3B82F6', vendorLabel:'Insurance Provider' },
+  { id:'tire',      label:'Tires',     icon:'⚙️',  color:'#6B7280', vendorLabel:'Tyre Shop' },
+  { id:'battery',   label:'Battery',   icon:'🔋',  color:'#EAB308', vendorLabel:'Battery Shop' },
+  { id:'accessory', label:'Accessory', icon:'🎁',  color:'#EC4899', vendorLabel:'Shop' },
+  { id:'other',     label:'Other',     icon:'📋',  color:'#8B5CF6', vendorLabel:'Vendor' },
+];
+
+function save() {
+  DB.set('fl_vehicles', vehicles);
+  DB.set('fl_fuel', fuelEntries);
+  DB.set('fl_trips', tripEntries);
+  DB.set('fl_expenses', expenseEntries);
+}
+
+function uid() { return Date.now().toString(36) + Math.random().toString(36).slice(2, 7); }
+
+function fmt(n, dec=0) {
+  if (n == null || isNaN(n)) return '—';
+  return n.toLocaleString('en-IN', { maximumFractionDigits: dec, minimumFractionDigits: dec });
+}
+
+function today() { return new Date().toISOString().split('T')[0]; }
+
+function fmtDate(d) {
+  const dt = new Date(d);
+  return dt.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' });
+}
+
+function getMonthLabel(offset=0) {
+  const d = new Date();
+  d.setMonth(d.getMonth() + offset);
+  return d.toLocaleDateString('en-IN', { month: 'short' });
+}
+
+// ─── NAVIGATION ───────────────────────────────────────────────
+const pages = ['dashboard','fuel','trips','expenses','vehicles','settings'];
+let currentPage = 'dashboard';
+
+function showPage(id) {
+  // Exit select mode if switching away from the page it's active on
+  if (selectMode && selectMode !== id) exitSelectMode();
+  pages.forEach(p => {
+    document.getElementById('page-'+p).classList.toggle('active', p===id);
+    const nb = document.getElementById('nav-'+p);
+    if (nb) nb.classList.toggle('active', p===id);
+  });
+  currentPage = id;
+  const fab = document.getElementById('fab');
+  fab.style.display = id === 'settings' ? 'none' : 'flex';
+  if (id==='dashboard') renderDashboard();
+  if (id==='fuel') renderFuelList();
+  if (id==='trips') renderTripList();
+  if (id==='expenses') renderExpenseList();
+  if (id==='vehicles') renderVehiclesList();
+  if (id==='settings') { renderBackupFreqRow(); updateBackupSettingsRow(); updateOCRArchiveStatus(); }
+}
+
+// ─── MODALS ───────────────────────────────────────────────────
+function openAddModal() {
+  if (currentPage === 'fuel') { openFuelModal(); return; }
+  if (currentPage === 'trips') { openTripModal(); return; }
+  if (currentPage === 'expenses') { openExpenseModal(); return; }
+  if (currentPage === 'vehicles') { openVehicleModal(); return; }
+  if (window.clearModalSwipeStyles) window.clearModalSwipeStyles('modal-choose');
+  document.getElementById('modal-choose').classList.add('open');
+}
+function closeModal(id) { document.getElementById(id).classList.remove('open'); }
+
+// ── Modal: tap backdrop to close + swipe-down to dismiss ──────
+(function() {
+  // Tap outside modal sheet to close
+  document.querySelectorAll('.modal-overlay').forEach(overlay => {
+    overlay.addEventListener('click', e => {
+      if (e.target === overlay) overlay.classList.remove('open');
+    });
+  });
+
+  // Swipe-down to dismiss — tracks touch on handle-area or modal body
+  let swipeStartY = 0, swipeModal = null, swipeSheet = null, dragging = false;
+  const DISMISS_THRESHOLD = 120; // px to drag before auto-dismiss
+  const DISMISS_VELOCITY  = 0.5; // px/ms fast flick threshold
+
+  function resetSwipeState(sheet) {
+    if (sheet) {
+      sheet.classList.remove('swiping');
+      sheet.style.transform  = '';
+      sheet.style.transition = '';
+    }
+    swipeSheet = null;
+    swipeModal = null;
+    dragging   = false;
+    window._modalSwiping = false;
+  }
+
+  // Clear any leftover swipe styles whenever a modal is opened fresh
+  function clearModalSwipeStyles(overlayId) {
+    const overlay = document.getElementById(overlayId);
+    const sheet = overlay?.querySelector('.modal');
+    if (sheet) {
+      sheet.classList.remove('swiping');
+      sheet.style.transform  = '';
+      sheet.style.transition = '';
+    }
+  }
+  window.clearModalSwipeStyles = clearModalSwipeStyles;
+
+  document.addEventListener('touchstart', e => {
+    const overlay = e.target.closest('.modal-overlay.open');
+    if (!overlay) return;
+    const sheet = overlay.querySelector('.modal');
+    if (!sheet) return;
+    // Only start swipe on the handle area or non-scrollable areas
+    const handleArea = e.target.closest('.modal-handle-area');
+    const modalBody  = e.target.closest('.modal-body');
+    // On handle: always allow. On body: only if scrolled to top
+    if (!handleArea && modalBody && modalBody.scrollTop > 0) return;
+    if (!handleArea && !modalBody) return; // ignore footer/header touches for swipe
+
+    // Always start from a clean state — clear any stale styles first
+    resetSwipeState(swipeSheet);
+
+    swipeStartY = e.touches[0].clientY;
+    swipeModal  = overlay;
+    swipeSheet  = sheet;
+    dragging    = false;
+    sheet._swipeTime = Date.now();
+    sheet.classList.add('swiping');
+    // Tell PTR not to activate while we're doing a modal swipe
+    window._modalSwiping = true;
+  }, { passive: true });
+
+  document.addEventListener('touchmove', e => {
+    if (!swipeSheet) return;
+    const dy = e.touches[0].clientY - swipeStartY;
+    if (dy < 0) {
+      // Swiping upward — cancel the gesture and fully reset
+      resetSwipeState(swipeSheet);
+      return;
+    }
+    dragging = true;
+    // Rubber-band: slow down drag beyond threshold
+    const pull = dy < DISMISS_THRESHOLD ? dy : DISMISS_THRESHOLD + (dy - DISMISS_THRESHOLD) * 0.3;
+    swipeSheet.style.transform = `translateY(${pull}px)`;
+    swipeSheet.style.transition = 'none';
+  }, { passive: true });
+
+  function finishSwipe(clientY) {
+    if (!swipeSheet || !dragging) { resetSwipeState(swipeSheet); return; }
+    const dy       = clientY - swipeStartY;
+    const elapsed  = Math.max(1, Date.now() - swipeSheet._swipeTime);
+    const velocity = dy / elapsed;
+    const dismiss  = dy >= DISMISS_THRESHOLD || velocity >= DISMISS_VELOCITY;
+
+    const sheet   = swipeSheet;
+    const overlay = swipeModal;
+    sheet.classList.remove('swiping');
+
+    if (dismiss) {
+      // Animate off-screen then close
+      sheet.style.transition = 'transform .25s cubic-bezier(.4,0,.8,.6)';
+      sheet.style.transform  = `translateY(110%)`;
+      setTimeout(() => {
+        overlay.classList.remove('open');
+        sheet.style.transform  = '';
+        sheet.style.transition = '';
+      }, 260);
+    } else {
+      // Snap back
+      sheet.style.transition = 'transform .3s cubic-bezier(.4,0,.2,1)';
+      sheet.style.transform  = '';
+      setTimeout(() => { sheet.style.transition = ''; }, 300);
+    }
+    // Reset tracking vars immediately (don't wait for the animation)
+    swipeSheet = null;
+    swipeModal = null;
+    dragging   = false;
+    window._modalSwiping = false;
+  }
+
+  document.addEventListener('touchend', e => {
+    finishSwipe(e.changedTouches[0].clientY);
+  }, { passive: true });
+
+  // CRITICAL: handle touchcancel too — without this, an interrupted gesture
+  // (e.g. browser cancels touch during animation) leaves state stuck forever,
+  // which is what caused "works once, then shows backdrop" on subsequent opens.
+  document.addEventListener('touchcancel', () => {
+    resetSwipeState(swipeSheet);
+  }, { passive: true });
+})();
+
+// ─── VEHICLE MODAL ────────────────────────────────────────────
+function openVehicleModal(id=null) {
+  const m = document.getElementById('modal-vehicle');
+  document.getElementById('vehicle-edit-id').value = id || '';
+  document.getElementById('vehicle-modal-title').textContent = id ? 'Edit Vehicle' : 'Add Vehicle';
+  document.getElementById('vehicle-delete-btn').style.display = id ? 'block' : 'none';
+  if (id) {
+    const v = vehicles.find(x=>x.id===id);
+    if (v) {
+      document.getElementById('v-name').value = v.name;
+      document.getElementById('v-type').value = v.type;
+      document.getElementById('v-fuel').value = v.fuel;
+      document.getElementById('v-reg').value = v.reg;
+      document.getElementById('v-odo').value = v.odo;
+      document.getElementById('v-date').value = v.purchaseDate || '';
+    }
+  } else {
+    ['v-name','v-reg','v-odo'].forEach(x=>document.getElementById(x).value='');
+    document.getElementById('v-type').value='car';
+    document.getElementById('v-fuel').value='petrol';
+    document.getElementById('v-date').value='';
+  }
+  if (window.clearModalSwipeStyles) window.clearModalSwipeStyles(m.id);
+  m.classList.add('open');
+}
+
+function saveVehicle() {
+  const name = document.getElementById('v-name').value.trim();
+  if (!name) { toast('Enter vehicle name'); return; }
+  const id = document.getElementById('vehicle-edit-id').value || uid();
+  const v = {
+    id, name,
+    type: document.getElementById('v-type').value,
+    fuel: document.getElementById('v-fuel').value,
+    reg: document.getElementById('v-reg').value.trim().toUpperCase(),
+    odo: parseFloat(document.getElementById('v-odo').value) || 0,
+    purchaseDate: document.getElementById('v-date').value,
+    createdAt: new Date().toISOString()
+  };
+  const idx = vehicles.findIndex(x=>x.id===id);
+  if (idx>=0) vehicles[idx]=v; else vehicles.push(v);
+  save();
+  closeModal('modal-vehicle');
+  toast('Vehicle saved!');
+  renderDashboard();
+  if (currentPage==='vehicles') renderVehiclesList();
+}
+
+function deleteVehicle() {
+  const id = document.getElementById('vehicle-edit-id').value;
+  if (!confirm('Delete this vehicle and all its entries?')) return;
+  vehicles = vehicles.filter(x=>x.id!==id);
+  fuelEntries = fuelEntries.filter(x=>x.vehicleId!==id);
+  tripEntries = tripEntries.filter(x=>x.vehicleId!==id);
+  save();
+  closeModal('modal-vehicle');
+  toast('Vehicle deleted');
+  renderVehiclesList();
+  renderDashboard();
+}
+
+// ─── FUEL MODAL ───────────────────────────────────────────────
+function openFuelModal(id=null) {
+  populateVehicleSelect('fuel-vehicle');
+  const m = document.getElementById('modal-fuel');
+  document.getElementById('fuel-edit-id').value = id || '';
+  document.getElementById('fuel-modal-title').textContent = id ? 'Edit Fuel Entry' : 'Fuel Entry';
+  document.getElementById('fuel-delete-btn').style.display = id ? 'block' : 'none';
+  document.getElementById('scan-bill-btn').style.display = id ? 'none' : 'flex';
+  document.getElementById('mileage-hint').innerHTML = '';
+  document.getElementById('fuel-price-hint').innerHTML = '';
+  if (id) {
+    const e = fuelEntries.find(x=>x.id===id);
+    if (e) {
+      document.getElementById('fuel-vehicle').value = e.vehicleId;
+      document.getElementById('fuel-date').value = e.date;
+      document.getElementById('fuel-odo').value = e.odo;
+      document.getElementById('fuel-litres').value = e.litres;
+      document.getElementById('fuel-cost').value = e.cost;
+      document.getElementById('fuel-station').value = e.station || '';
+      document.getElementById('fuel-fulltank').checked = e.fullTank || false;
+      document.getElementById('fuel-notes').value = e.notes || '';
+      calcFuelPrice(); calcMileage();
+    }
+  } else {
+    document.getElementById('fuel-date').value = today();
+    ['fuel-odo','fuel-litres','fuel-cost','fuel-station','fuel-notes'].forEach(x=>document.getElementById(x).value='');
+    document.getElementById('fuel-fulltank').checked = true;
+    if (fuelVehicleId) document.getElementById('fuel-vehicle').value = fuelVehicleId;
+    else if (dashVehicleId) document.getElementById('fuel-vehicle').value = dashVehicleId;
+  }
+  if (window.clearModalSwipeStyles) window.clearModalSwipeStyles(m.id);
+  m.classList.add('open');
+}
+
+function calcFuelPrice() {
+  const l = parseFloat(document.getElementById('fuel-litres').value);
+  const c = parseFloat(document.getElementById('fuel-cost').value);
+  const hint = document.getElementById('fuel-price-hint');
+  if (l && c) {
+    hint.innerHTML = `<div class="calc-badge">₹${(c/l).toFixed(2)}/litre</div>`;
+  } else hint.innerHTML = '';
+}
+
+function calcMileage() {
+  const hint = document.getElementById('mileage-hint');
+  const vid = document.getElementById('fuel-vehicle').value;
+  const curOdo = parseFloat(document.getElementById('fuel-odo').value);
+  if (!vid || !curOdo) { hint.innerHTML=''; return; }
+  const prevFuels = fuelEntries.filter(x=>x.vehicleId===vid && x.odo < curOdo).sort((a,b)=>b.odo-a.odo);
+  if (!prevFuels.length) { hint.innerHTML=''; return; }
+  const prev = prevFuels[0];
+  const dist = curOdo - prev.odo;
+  const litres = parseFloat(document.getElementById('fuel-litres').value);
+  if (dist > 0 && litres > 0) {
+    hint.innerHTML = `<div class="calc-badge" style="background:rgba(16,185,129,.15);color:var(--green)">~${(dist/litres).toFixed(1)} km/l · ${fmt(dist)} km since last fill</div>`;
+  }
+}
+
+function saveFuelEntry() {
+  const vid = document.getElementById('fuel-vehicle').value;
+  if (!vid) { toast('Select a vehicle'); return; }
+  const litres = parseFloat(document.getElementById('fuel-litres').value);
+  const cost = parseFloat(document.getElementById('fuel-cost').value);
+  if (!litres || !cost) { toast('Enter litres and cost'); return; }
+  const id = document.getElementById('fuel-edit-id').value || uid();
+  const entry = {
+    id, vehicleId: vid,
+    date: document.getElementById('fuel-date').value || today(),
+    odo: parseFloat(document.getElementById('fuel-odo').value) || 0,
+    litres, cost,
+    pricePerL: cost/litres,
+    station: document.getElementById('fuel-station').value.trim(),
+    fullTank: document.getElementById('fuel-fulltank').checked,
+    notes: document.getElementById('fuel-notes').value.trim(),
+    createdAt: new Date().toISOString()
+  };
+  const idx = fuelEntries.findIndex(x=>x.id===id);
+  if (idx>=0) fuelEntries[idx]=entry; else fuelEntries.push(entry);
+  // Update vehicle odometer
+  const v = vehicles.find(x=>x.id===vid);
+  if (v && entry.odo > v.odo) { v.odo = entry.odo; }
+  save();
+  closeModal('modal-fuel');
+  toast('Fuel entry saved!');
+  if (currentPage==='fuel') renderFuelList();
+  if (currentPage==='dashboard') renderDashboard();
+}
+
+function deleteFuelEntry() {
+  const id = document.getElementById('fuel-edit-id').value;
+  if (!confirm('Delete this fuel entry?')) return;
+  fuelEntries = fuelEntries.filter(x=>x.id!==id);
+  save(); closeModal('modal-fuel'); toast('Deleted');
+  if (currentPage==='fuel') renderFuelList();
+  if (currentPage==='dashboard') renderDashboard();
+}
+
+// ─── OFFLINE OCR — SCAN FUEL BILL ──────────────────────────────
+// Architecture:
+//   1. OpenCV.js   — image preprocessing (grayscale, adaptive threshold, denoise)
+//   2. Tesseract.js — fully offline OCR (WASM, runs on-device, no network)
+//   3. Regex engine — extracts structured fields (date/litres/cost/odo/station) from raw text
+//   4. IndexedDB    — archives every scan (original image + raw text + parsed fields)
+// Both libraries are lazy-loaded on first scan attempt and cached by the service
+// worker afterward, so every scan after the first works with zero network access.
+
+const OCR_LIB_URLS = {
+  tesseract: 'https://cdn.jsdelivr.net/npm/tesseract.js@5.0.4/dist/tesseract.min.js',
+  opencv:    'https://docs.opencv.org/4.9.0/opencv.js'
+};
+
+let _ocrLibsLoading = null; // promise guard so we never load twice
+let _tesseractWorker = null;
+let scanState = { rawFile: null, dataUrl: null, processedDataUrl: null, parsed: null, rawText: '' };
+
+function loadScript(src) {
+  return new Promise((resolve, reject) => {
+    // Already loaded?
+    if (document.querySelector(`script[src="${src}"]`)) { resolve(); return; }
+    const s = document.createElement('script');
+    s.src = src;
+    s.onload = () => resolve();
+    s.onerror = () => reject(new Error(`Failed to load ${src}`));
+    document.head.appendChild(s);
+  });
+}
+
+async function ensureOCRLibsLoaded(onStatus) {
+  if (_ocrLibsLoading) return _ocrLibsLoading;
+
+  _ocrLibsLoading = (async () => {
+    // Tesseract.js
+    if (typeof window.Tesseract === 'undefined') {
+      onStatus?.('Loading OCR engine (first time only)…');
+      await loadScript(OCR_LIB_URLS.tesseract);
+    }
+    // OpenCV.js — exposes a global `cv` object once its internal init runs
+    if (typeof window.cv === 'undefined' || !window.cv.Mat) {
+      onStatus?.('Loading image processor (first time only)…');
+      await loadScript(OCR_LIB_URLS.opencv);
+      // OpenCV.js calls a runtime-ready callback; wait for cv.Mat to exist
+      await new Promise((resolve) => {
+        const check = () => {
+          if (window.cv && window.cv.Mat) resolve();
+          else setTimeout(check, 100);
+        };
+        check();
+      });
+    }
+  })();
+
+  return _ocrLibsLoading;
+}
+
+function openScanModal() {
+  closeModal('modal-choose');
+  resetScanToCapture();
+  const m = document.getElementById('modal-scan');
+  if (window.clearModalSwipeStyles) window.clearModalSwipeStyles(m.id);
+  m.classList.add('open');
+
+  // Show cached/offline-ready status
+  const status = document.getElementById('scan-lib-status');
+  const ready = typeof window.Tesseract !== 'undefined' && typeof window.cv !== 'undefined' && window.cv.Mat;
+  status.textContent = ready
+    ? '✓ OCR engine ready — works fully offline'
+    : 'OCR engine will download once (~6MB), then works offline forever';
+}
+
+function resetScanToCapture() {
+  scanState = { rawFile: null, dataUrl: null, processedDataUrl: null, parsed: null, rawText: '' };
+  document.querySelectorAll('.scan-stage').forEach(s => s.classList.remove('active'));
+  document.getElementById('scan-stage-capture').classList.add('active');
+  document.getElementById('scan-footer-capture').style.display = '';
+  document.getElementById('scan-footer-results').style.display = 'none';
+  document.getElementById('scan-raw-text').classList.remove('visible');
+  document.getElementById('scan-raw-toggle').textContent = 'Show raw OCR text';
+  ['scan-file-input','scan-camera-input','scan-gallery-input'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.value = '';
+  });
+}
+
+async function handleScanFile(input) {
+  const file = input.files[0];
+  if (!file) return;
+  scanState.rawFile = file;
+
+  const reader = new FileReader();
+  reader.onload = async (e) => {
+    scanState.dataUrl = e.target.result;
+    await runOCRPipeline(scanState.dataUrl);
+  };
+  reader.readAsDataURL(file);
+}
+
+function setScanProgress(pct, label) {
+  document.getElementById('scan-progress-fill').style.width = `${pct}%`;
+  document.getElementById('scan-progress-pct').textContent = `${pct}%`;
+  if (label) document.getElementById('scan-progress-text').textContent = label;
+}
+
+async function runOCRPipeline(dataUrl) {
+  // Move to processing stage
+  document.querySelectorAll('.scan-stage').forEach(s => s.classList.remove('active'));
+  document.getElementById('scan-stage-processing').classList.add('active');
+  document.getElementById('scan-preview-img').src = dataUrl;
+  setScanProgress(0, 'Loading OCR engine…');
+
+  try {
+    await ensureOCRLibsLoaded((msg) => setScanProgress(5, msg));
+    setScanProgress(15, 'Enhancing image…');
+
+    // ── Step 1: OpenCV preprocessing ──
+    const processedDataUrl = await preprocessImageWithOpenCV(dataUrl);
+    scanState.processedDataUrl = processedDataUrl;
+    setScanProgress(30, 'Reading text…');
+
+    // ── Step 2: Tesseract OCR ──
+    if (!_tesseractWorker) {
+      _tesseractWorker = await window.Tesseract.createWorker('eng', 1, {
+        logger: (m) => {
+          if (m.status === 'recognizing text') {
+            setScanProgress(30 + Math.round(m.progress * 65), 'Reading text…');
+          }
+        }
+      });
+    }
+    const { data } = await _tesseractWorker.recognize(processedDataUrl);
+    const rawText = data.text || '';
+    scanState.rawText = rawText;
+    setScanProgress(98, 'Extracting fields…');
+
+    // ── Step 3: Regex extraction ──
+    const parsed = extractFuelFieldsFromText(rawText);
+    scanState.parsed = parsed;
+    setScanProgress(100, 'Done');
+
+    // ── Step 4: Archive to IndexedDB ──
+    await archiveScanToIndexedDB(dataUrl, rawText, parsed);
+
+    showScanResults(parsed, rawText, dataUrl);
+
+  } catch (err) {
+    console.error('[FuelLog OCR] Pipeline failed:', err);
+    toast(`Scan failed: ${err?.message || 'Unknown error'}`, 4000);
+    resetScanToCapture();
+  }
+}
+
+// ── OpenCV preprocessing: grayscale → denoise → adaptive threshold ──
+// This step dramatically improves Tesseract accuracy on phone-camera photos
+// of crumpled/shadowed receipts compared to feeding it the raw photo.
+function preprocessImageWithOpenCV(dataUrl) {
+  return new Promise((resolve) => {
+    const img = new Image();
+    img.onload = () => {
+      try {
+        const cv = window.cv;
+        const canvas = document.createElement('canvas');
+        // Cap max dimension for performance on large phone photos
+        const maxDim = 1600;
+        let { width, height } = img;
+        if (width > maxDim || height > maxDim) {
+          const scale = maxDim / Math.max(width, height);
+          width = Math.round(width * scale);
+          height = Math.round(height * scale);
+        }
+        canvas.width = width; canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(img, 0, 0, width, height);
+
+        const src = cv.imread(canvas);
+        const gray = new cv.Mat();
+        cv.cvtColor(src, gray, cv.COLOR_RGBA2GRAY);
+
+        // Denoise lightly
+        const denoised = new cv.Mat();
+        cv.GaussianBlur(gray, denoised, new cv.Size(3, 3), 0);
+
+        // Adaptive threshold — handles uneven lighting on receipts well
+        const thresh = new cv.Mat();
+        cv.adaptiveThreshold(denoised, thresh, 255, cv.ADAPTIVE_THRESH_GAUSSIAN_C, cv.THRESH_BINARY, 31, 15);
+
+        cv.imshow(canvas, thresh);
+        const outUrl = canvas.toDataURL('image/png');
+
+        src.delete(); gray.delete(); denoised.delete(); thresh.delete();
+        resolve(outUrl);
+      } catch (e) {
+        console.warn('[FuelLog OCR] OpenCV preprocessing failed, using original image:', e);
+        resolve(dataUrl); // graceful fallback — OCR raw image if CV fails
+      }
+    };
+    img.onerror = () => resolve(dataUrl);
+    img.src = dataUrl;
+  });
+}
+
+// ── Regex extraction engine ──
+// Each field tries multiple patterns in priority order. Confidence is based
+// on which pattern matched and whether cross-checks (e.g. cost = litres × price) hold.
+function extractFuelFieldsFromText(text) {
+  const clean = text.replace(/[|]/g, 'l').replace(/\u20b9/g, '₹'); // common OCR misreads
+  const lines = clean.split('\n').map(l => l.trim()).filter(Boolean);
+  const joined = clean.replace(/\s+/g, ' ');
+
+  const result = {
+    date: null, dateConf: 'missing',
+    litres: null, litresConf: 'missing',
+    cost: null, costConf: 'missing',
+    pricePerL: null, pricePerLConf: 'missing',
+    odometer: null, odometerConf: 'missing',
+    station: null, stationConf: 'missing',
+  };
+
+  // ── DATE ── formats: DD/MM/YYYY, DD-MM-YYYY, DD.MM.YYYY, YYYY-MM-DD
+  const datePatterns = [
+    { re: /\b(\d{2})[\/\-.](\d{2})[\/\-.](\d{4})\b/, fmt: (m) => `${m[3]}-${m[2]}-${m[1]}`, conf: 'high' },
+    { re: /\b(\d{4})[\/\-.](\d{2})[\/\-.](\d{2})\b/, fmt: (m) => `${m[1]}-${m[2]}-${m[3]}`, conf: 'high' },
+    { re: /\b(\d{2})[\/\-.](\d{2})[\/\-.](\d{2})\b/, fmt: (m) => `20${m[3]}-${m[2]}-${m[1]}`, conf: 'medium' },
+  ];
+  for (const p of datePatterns) {
+    const m = joined.match(p.re);
+    if (m) {
+      const candidate = p.fmt(m);
+      const d = new Date(candidate);
+      if (!isNaN(d) && d.getFullYear() > 2015 && d.getFullYear() < 2035) {
+        result.date = candidate; result.dateConf = p.conf; break;
+      }
+    }
+  }
+
+  // ── LITRES ── e.g. "12.34 L", "Qty: 12.34", "Volume 12.34 Ltr"
+  const litrePatterns = [
+    { re: /(?:qty|quantity|vol(?:ume)?|ltr|litre|liter)s?\s*[:\-]?\s*(\d{1,3}\.\d{1,3})/i, conf: 'high' },
+    { re: /(\d{1,3}\.\d{1,3})\s*(?:l|ltr|litre|liter)s?\b/i, conf: 'high' },
+    { re: /(\d{1,3}\.\d{1,3})\s*L\b/, conf: 'medium' },
+  ];
+  for (const p of litrePatterns) {
+    const m = joined.match(p.re);
+    if (m) {
+      const val = parseFloat(m[1]);
+      if (val > 0 && val < 200) { result.litres = val; result.litresConf = p.conf; break; }
+    }
+  }
+
+  // ── PRICE PER LITRE ── e.g. "Rate: 94.50", "Price/L 94.50", "@ 94.50"
+  const ppl_patterns = [
+    { re: /(?:rate|price)\s*(?:\/|per)?\s*l(?:tr|itre)?\s*[:\-]?\s*₹?\s*(\d{2,3}\.\d{1,2})/i, conf: 'high' },
+    { re: /@\s*₹?\s*(\d{2,3}\.\d{1,2})/i, conf: 'medium' },
+  ];
+  for (const p of ppl_patterns) {
+    const m = joined.match(p.re);
+    if (m) {
+      const val = parseFloat(m[1]);
+      if (val > 30 && val < 200) { result.pricePerL = val; result.pricePerLConf = p.conf; break; }
+    }
+  }
+
+  // ── TOTAL COST ── e.g. "Total: 1234.50", "Amount Rs 1234", "₹1234.50"
+  const costPatterns = [
+    { re: /(?:total|grand\s*total|net\s*amount|amount\s*payable)\s*[:\-]?\s*(?:rs\.?|₹|inr)?\s*(\d{2,6}\.\d{2})/i, conf: 'high' },
+    { re: /(?:rs\.?|₹|inr)\s*(\d{2,6}\.\d{2})/i, conf: 'medium' },
+    { re: /\b(\d{2,6}\.\d{2})\b(?!\s*(?:l|ltr|litre))/i, conf: 'low' },
+  ];
+  for (const p of costPatterns) {
+    const m = joined.match(p.re);
+    if (m) {
+      const val = parseFloat(m[1]);
+      if (val > 50 && val < 50000) { result.cost = val; result.costConf = p.conf; break; }
+    }
+  }
+
+  // Cross-check: if we have litres + price/L but no/low-confidence cost, derive it
+  if (result.litres && result.pricePerL && (!result.cost || result.costConf === 'low')) {
+    const derived = Math.round(result.litres * result.pricePerL * 100) / 100;
+    result.cost = derived; result.costConf = 'high'; // cross-validated
+  }
+  // If we have cost + litres but no price/L, derive it
+  if (result.cost && result.litres && !result.pricePerL) {
+    result.pricePerL = Math.round((result.cost / result.litres) * 100) / 100;
+    result.pricePerLConf = 'medium';
+  }
+
+  // ── ODOMETER ── e.g. "ODO: 45230", "KM 45230", "Odometer Reading 45230"
+  const odoPatterns = [
+    { re: /(?:odo(?:meter)?|km\s*reading)\s*[:\-]?\s*(\d{3,7})/i, conf: 'high' },
+    { re: /\bkm\b\s*[:\-]?\s*(\d{3,7})\b/i, conf: 'medium' },
+  ];
+  for (const p of odoPatterns) {
+    const m = joined.match(p.re);
+    if (m) {
+      const val = parseInt(m[1], 10);
+      if (val > 0 && val < 9999999) { result.odometer = val; result.odometerConf = p.conf; break; }
+    }
+  }
+
+  // ── STATION NAME ── look for known Indian fuel brands in the first few lines
+  const knownBrands = ['HP', 'HPCL', 'Hindustan Petroleum', 'Indian Oil', 'IOCL', 'BPCL', 'Bharat Petroleum',
+                        'Shell', 'Reliance', 'Essar', 'Nayara', 'Jio-bp', 'Total'];
+  for (const line of lines.slice(0, 6)) {
+    const hit = knownBrands.find(b => line.toLowerCase().includes(b.toLowerCase()));
+    if (hit) { result.station = hit; result.stationConf = 'high'; break; }
+  }
+  if (!result.station && lines.length) {
+    // Fallback: first non-empty line is often the station/business name on a receipt
+    const candidate = lines[0].replace(/[^a-zA-Z0-9 .&\-]/g, '').trim();
+    if (candidate.length > 2 && candidate.length < 40) {
+      result.station = candidate; result.stationConf = 'low';
+    }
+  }
+
+  return result;
+}
+
+function confDot(conf) {
+  return `<div class="scan-confidence-dot ${conf}"></div>`;
+}
+
+function showScanResults(parsed, rawText, originalDataUrl) {
+  document.querySelectorAll('.scan-stage').forEach(s => s.classList.remove('active'));
+  document.getElementById('scan-stage-results').classList.add('active');
+  document.getElementById('scan-footer-capture').style.display = 'none';
+  document.getElementById('scan-footer-results').style.display = '';
+  document.getElementById('scan-result-img').src = originalDataUrl;
+  document.getElementById('scan-raw-text').textContent = rawText.trim() || '(no text detected)';
+
+  const rows = [
+    { label: 'Date',     val: parsed.date ? fmtDate(parsed.date) : null, conf: parsed.dateConf },
+    { label: 'Litres',   val: parsed.litres ? `${parsed.litres} L` : null, conf: parsed.litresConf },
+    { label: 'Price/L',  val: parsed.pricePerL ? `₹${parsed.pricePerL.toFixed(2)}` : null, conf: parsed.pricePerLConf },
+    { label: 'Cost',     val: parsed.cost ? `₹${fmt(parsed.cost)}` : null, conf: parsed.costConf },
+    { label: 'Odometer', val: parsed.odometer ? `${fmt(parsed.odometer)} km` : null, conf: parsed.odometerConf },
+    { label: 'Station',  val: parsed.station || null, conf: parsed.stationConf },
+  ];
+
+  document.getElementById('scan-result-grid').innerHTML = rows.map(r => `
+    <div class="scan-result-row ${r.val ? r.conf : 'missing'}">
+      <div class="scan-result-label">${r.label}</div>
+      ${confDot(r.val ? r.conf : 'missing')}
+      <div class="scan-result-val ${r.val ? '' : 'missing'}">${r.val || 'Not found'}</div>
+    </div>`).join('');
+
+  const foundCount = rows.filter(r => r.val).length;
+  toast(foundCount >= 2 ? `Found ${foundCount} fields — review and apply` : 'Few fields detected — try a clearer photo or fill manually', 3000);
+}
+
+function toggleScanRawText() {
+  const el = document.getElementById('scan-raw-text');
+  const btn = document.getElementById('scan-raw-toggle');
+  el.classList.toggle('visible');
+  btn.textContent = el.classList.contains('visible') ? 'Hide raw OCR text' : 'Show raw OCR text';
+}
+
+function applyScanToForm() {
+  const p = scanState.parsed;
+  if (!p) return;
+  closeModal('modal-scan');
+  openFuelModal(); // fresh new-entry form
+
+  setTimeout(() => {
+    if (p.date) document.getElementById('fuel-date').value = p.date;
+    if (p.litres) document.getElementById('fuel-litres').value = p.litres;
+    if (p.cost) document.getElementById('fuel-cost').value = p.cost;
+    if (p.odometer) document.getElementById('fuel-odo').value = p.odometer;
+    if (p.station) document.getElementById('fuel-station').value = p.station;
+    calcFuelPrice();
+    calcMileage();
+    const hint = document.getElementById('fuel-price-hint');
+    const extra = hint.innerHTML;
+    hint.innerHTML = `<div class="calc-badge" style="background:rgba(245,158,11,.15);color:var(--amber)">✓ Auto-filled from scanned bill — please verify</div>${extra}`;
+  }, 320);
+}
+
+// ── Drag-and-drop support for the drop zone ──
+document.addEventListener('DOMContentLoaded', () => {
+  const dz = document.getElementById('scan-drop-zone');
+  if (!dz) return;
+  dz.addEventListener('dragover', e => { e.preventDefault(); dz.classList.add('drag-over'); });
+  dz.addEventListener('dragleave', () => dz.classList.remove('drag-over'));
+  dz.addEventListener('drop', e => {
+    e.preventDefault(); dz.classList.remove('drag-over');
+    const file = e.dataTransfer?.files?.[0];
+    if (file && file.type.startsWith('image/')) {
+      const dt = new DataTransfer(); dt.items.add(file);
+      const inp = document.getElementById('scan-file-input');
+      inp.files = dt.files;
+      handleScanFile(inp);
+    }
+  });
+});
+
+// ── IndexedDB archive — stores every scan (image + raw text + parsed fields) ──
+const OCR_DB_NAME = 'fuellog_ocr_archive';
+const OCR_DB_VERSION = 1;
+const OCR_STORE_NAME = 'scans';
+let _ocrDbPromise = null;
+
+function openOCRDatabase() {
+  if (_ocrDbPromise) return _ocrDbPromise;
+  _ocrDbPromise = new Promise((resolve, reject) => {
+    if (!('indexedDB' in window)) { reject(new Error('IndexedDB not supported')); return; }
+    const req = indexedDB.open(OCR_DB_NAME, OCR_DB_VERSION);
+    req.onupgradeneeded = (e) => {
+      const db = e.target.result;
+      if (!db.objectStoreNames.contains(OCR_STORE_NAME)) {
+        const store = db.createObjectStore(OCR_STORE_NAME, { keyPath: 'id' });
+        store.createIndex('createdAt', 'createdAt');
+      }
+    };
+    req.onsuccess = (e) => resolve(e.target.result);
+    req.onerror = () => reject(req.error);
+  });
+  return _ocrDbPromise;
+}
+
+async function archiveScanToIndexedDB(imageDataUrl, rawText, parsed) {
+  try {
+    const db = await openOCRDatabase();
+    const record = {
+      id: uid(),
+      createdAt: new Date().toISOString(),
+      image: imageDataUrl,
+      rawText,
+      parsed,
+    };
+    await new Promise((resolve, reject) => {
+      const tx = db.transaction(OCR_STORE_NAME, 'readwrite');
+      tx.objectStore(OCR_STORE_NAME).put(record);
+      tx.oncomplete = () => resolve();
+      tx.onerror = () => reject(tx.error);
+    });
+  } catch (err) {
+    // Non-fatal — archiving is a nice-to-have, never block the scan flow on it
+    console.warn('[FuelLog OCR] Failed to archive scan to IndexedDB:', err);
+  }
+}
+
+async function getOCRArchiveCount() {
+  try {
+    const db = await openOCRDatabase();
+    return await new Promise((resolve, reject) => {
+      const tx = db.transaction(OCR_STORE_NAME, 'readonly');
+      const req = tx.objectStore(OCR_STORE_NAME).count();
+      req.onsuccess = () => resolve(req.result);
+      req.onerror = () => reject(req.error);
+    });
+  } catch { return 0; }
+}
+
+async function clearOCRArchive() {
+  try {
+    const db = await openOCRDatabase();
+    await new Promise((resolve, reject) => {
+      const tx = db.transaction(OCR_STORE_NAME, 'readwrite');
+      tx.objectStore(OCR_STORE_NAME).clear();
+      tx.oncomplete = () => resolve();
+      tx.onerror = () => reject(tx.error);
+    });
+    toast('Scan archive cleared');
+  } catch (err) {
+    toast('Failed to clear archive');
+  }
+}
+
+async function confirmClearOCRArchive() {
+  const count = await getOCRArchiveCount();
+  if (count === 0) { toast('Archive is already empty'); return; }
+  if (!confirm(`Delete ${count} saved receipt scan${count===1?'':'s'}? This only removes the local scan history — your saved fuel entries are not affected.`)) return;
+  await clearOCRArchive();
+  updateOCRArchiveStatus();
+}
+
+async function updateOCRArchiveStatus() {
+  const el = document.getElementById('ocr-archive-status');
+  if (!el) return;
+  try {
+    const count = await getOCRArchiveCount();
+    el.textContent = count === 0
+      ? 'No scans saved yet'
+      : `${count} receipt scan${count===1?'':'s'} saved locally (IndexedDB)`;
+  } catch {
+    el.textContent = 'Archive unavailable on this browser';
+  }
+}
+
+// ─── TRIP MODAL ───────────────────────────────────────────────
+function openTripModal(id=null) {
+  populateVehicleSelect('trip-vehicle');
+  const m = document.getElementById('modal-trip');
+  document.getElementById('trip-edit-id').value = id || '';
+  document.getElementById('trip-dist-hint').innerHTML = '';
+  document.getElementById('trip-end-group').style.display = '';
+  document.getElementById('trip-save-btn').textContent = 'Save Entry';
+
+  if (id) {
+    const e = tripEntries.find(x=>x.id===id);
+    document.getElementById('trip-modal-title').textContent = 'Edit Trip';
+    document.getElementById('trip-delete-btn').style.display = 'block';
+    document.getElementById('start-trip-btn').style.display = 'none';
+    if (e) {
+      document.getElementById('trip-vehicle').value = e.vehicleId;
+      document.getElementById('trip-date').value = e.date;
+      document.getElementById('trip-start').value = e.startOdo;
+      document.getElementById('trip-end').value = e.endOdo || '';
+      document.getElementById('trip-source').value = e.source || '';
+      document.getElementById('trip-destination').value = e.destination || '';
+      document.getElementById('trip-purpose').value = e.purpose;
+      document.getElementById('trip-notes').value = e.notes || '';
+      calcTripDist();
+    }
+  } else {
+    document.getElementById('trip-modal-title').textContent = 'Trip Entry';
+    document.getElementById('trip-delete-btn').style.display = 'none';
+    document.getElementById('start-trip-btn').style.display = 'flex';
+    document.getElementById('trip-date').value = today();
+    ['trip-start','trip-end','trip-source','trip-destination','trip-notes'].forEach(x=>document.getElementById(x).value='');
+    document.getElementById('trip-purpose').value='personal';
+    if (tripVehicleId) document.getElementById('trip-vehicle').value = tripVehicleId;
+    else if (dashVehicleId) document.getElementById('trip-vehicle').value = dashVehicleId;
+    // Pre-fill start odometer with the selected vehicle's current reading for convenience
+    prefillTripStartOdo();
+  }
+  if (window.clearModalSwipeStyles) window.clearModalSwipeStyles(m.id);
+  m.classList.add('open');
+}
+
+function prefillTripStartOdo() {
+  const isEditing = !!document.getElementById('trip-edit-id').value;
+  if (isEditing) { updateStartTripBtnState(); return; }
+  const vid = document.getElementById('trip-vehicle').value;
+  const v = vehicles.find(x=>x.id===vid);
+  if (v) {
+    document.getElementById('trip-start').value = v.odo;
+    calcTripDist();
+  }
+  updateStartTripBtnState();
+}
+
+// Disable/warn the Start Trip button if the selected vehicle already has a trip running
+function updateStartTripBtnState() {
+  const btn = document.getElementById('start-trip-btn');
+  if (!btn || btn.style.display === 'none') return;
+  const vid = document.getElementById('trip-vehicle').value;
+  const running = getActiveTrip(vid);
+  if (running) {
+    const v = vehicles.find(x=>x.id===vid);
+    btn.disabled = true;
+    btn.style.opacity = '.5';
+    btn.style.cursor = 'default';
+    btn.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg> ${v?.name||'This vehicle'} already has a trip running`;
+  } else {
+    btn.disabled = false;
+    btn.style.opacity = '';
+    btn.style.cursor = 'pointer';
+    btn.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polygon points="10 8 16 12 10 16 10 8"/></svg> Start Trip Now (track live)`;
+  }
+}
+
+function calcTripDist() {
+  const s = parseFloat(document.getElementById('trip-start').value);
+  const e = parseFloat(document.getElementById('trip-end').value);
+  const hint = document.getElementById('trip-dist-hint');
+  if (s && e && e > s) {
+    hint.innerHTML = `<div class="calc-badge">${fmt(e-s)} km travelled</div>`;
+  } else hint.innerHTML = '';
+}
+
+function saveTripEntry() {
+  const vid = document.getElementById('trip-vehicle').value;
+  if (!vid) { toast('Select a vehicle'); return; }
+  const startOdo = parseFloat(document.getElementById('trip-start').value) || 0;
+  const endOdo = parseFloat(document.getElementById('trip-end').value) || 0;
+  const id = document.getElementById('trip-edit-id').value || uid();
+  const entry = {
+    id, vehicleId: vid,
+    date: document.getElementById('trip-date').value || today(),
+    startOdo, endOdo,
+    distance: Math.max(0, endOdo - startOdo),
+    source: document.getElementById('trip-source').value.trim(),
+    destination: document.getElementById('trip-destination').value.trim(),
+    purpose: document.getElementById('trip-purpose').value,
+    notes: document.getElementById('trip-notes').value.trim(),
+    inProgress: false,
+    createdAt: new Date().toISOString()
+  };
+  const idx = tripEntries.findIndex(x=>x.id===id);
+  if (idx>=0) tripEntries[idx]=entry; else tripEntries.push(entry);
+  const v = vehicles.find(x=>x.id===vid);
+  if (v && endOdo > v.odo) { v.odo = endOdo; }
+  save();
+  closeModal('modal-trip');
+  toast('Trip saved!');
+  if (currentPage==='trips') renderTripList();
+  if (currentPage==='dashboard') renderDashboard();
+}
+
+function deleteTripEntry() {
+  const id = document.getElementById('trip-edit-id').value;
+  if (!confirm('Delete this trip?')) return;
+  tripEntries = tripEntries.filter(x=>x.id!==id);
+  save(); closeModal('modal-trip'); toast('Deleted');
+  if (currentPage==='trips') renderTripList();
+  if (currentPage==='dashboard') renderDashboard();
+}
+
+// ─── LIVE TRIP TRACKING ────────────────────────────────────────
+// A trip with inProgress:true has a startOdo + startedAt but no endOdo/distance yet.
+// Multiple trips can run simultaneously as long as each is on a DIFFERENT vehicle.
+// Only one active trip per vehicle is allowed (can't double-track the same car).
+
+function getActiveTrip(vehicleId) {
+  return tripEntries.find(x => x.inProgress === true && x.vehicleId === vehicleId) || null;
+}
+
+function getActiveTrips() {
+  return tripEntries.filter(x => x.inProgress === true);
+}
+
+function startLiveTrip() {
+  const vid = document.getElementById('trip-vehicle').value;
+  if (!vid) { toast('Select a vehicle'); return; }
+  if (getActiveTrip(vid)) {
+    const v = vehicles.find(x=>x.id===vid);
+    toast(`${v?.name||'This vehicle'} already has a trip running`);
+    return;
+  }
+
+  const startOdo = parseFloat(document.getElementById('trip-start').value) || 0;
+  if (!startOdo) { toast('Enter a start odometer reading'); return; }
+
+  const entry = {
+    id: uid(),
+    vehicleId: vid,
+    date: document.getElementById('trip-date').value || today(),
+    startOdo,
+    endOdo: null,
+    distance: null,
+    source: document.getElementById('trip-source').value.trim(),
+    destination: document.getElementById('trip-destination').value.trim(),
+    purpose: document.getElementById('trip-purpose').value,
+    notes: document.getElementById('trip-notes').value.trim(),
+    inProgress: true,
+    startedAt: new Date().toISOString(),
+    createdAt: new Date().toISOString()
+  };
+  tripEntries.push(entry);
+  save();
+  closeModal('modal-trip');
+  toast('Trip started! Tap End Trip on the dashboard when you arrive.');
+  if (currentPage==='trips') renderTripList();
+  if (currentPage==='dashboard') renderDashboard();
+}
+
+function openEndTripModal(tripId) {
+  const trip = tripId ? tripEntries.find(x=>x.id===tripId) : getActiveTrips()[0];
+  if (!trip) return;
+  const v = vehicles.find(x=>x.id===trip.vehicleId);
+
+  document.getElementById('end-trip-id').value = trip.id;
+  document.getElementById('end-trip-odo').value = '';
+  document.getElementById('end-trip-source').value = trip.source || '';
+  document.getElementById('end-trip-destination').value = trip.destination || '';
+  document.getElementById('end-trip-purpose').value = trip.purpose || 'personal';
+  document.getElementById('end-trip-notes').value = trip.notes || '';
+  document.getElementById('end-trip-dist-hint').innerHTML = '';
+
+  const elapsed = formatElapsed(trip.startedAt);
+  document.getElementById('end-trip-summary').innerHTML = `
+    <div style="font-size:14px;font-weight:700">${vehicleEmoji(v?.type)} ${v?.name||'Vehicle'}</div>
+    <div style="font-size:12px;color:var(--text2);margin-top:4px">Started ${fmtDate(trip.date)} · Start odo ${fmt(trip.startOdo)} km</div>
+    <div style="font-size:12px;color:var(--green);margin-top:2px;font-weight:600">Running for ${elapsed}</div>
+  `;
+
+  const m = document.getElementById('modal-end-trip');
+  if (window.clearModalSwipeStyles) window.clearModalSwipeStyles(m.id);
+  m.classList.add('open');
+}
+
+function calcEndTripDist() {
+  const id = document.getElementById('end-trip-id').value;
+  const trip = tripEntries.find(x=>x.id===id);
+  if (!trip) return;
+  const endOdo = parseFloat(document.getElementById('end-trip-odo').value);
+  const hint = document.getElementById('end-trip-dist-hint');
+  if (endOdo && endOdo > trip.startOdo) {
+    hint.innerHTML = `<div class="calc-badge" style="background:rgba(16,185,129,.15);color:var(--green)">${fmt(endOdo-trip.startOdo)} km travelled</div>`;
+  } else hint.innerHTML = '';
+}
+
+function finishLiveTrip() {
+  const id = document.getElementById('end-trip-id').value;
+  const trip = tripEntries.find(x=>x.id===id);
+  if (!trip) return;
+
+  const endOdo = parseFloat(document.getElementById('end-trip-odo').value) || 0;
+  if (!endOdo || endOdo <= trip.startOdo) { toast('Enter a valid end odometer reading'); return; }
+
+  trip.endOdo = endOdo;
+  trip.distance = endOdo - trip.startOdo;
+  trip.source = document.getElementById('end-trip-source').value.trim();
+  trip.destination = document.getElementById('end-trip-destination').value.trim();
+  trip.purpose = document.getElementById('end-trip-purpose').value;
+  trip.notes = document.getElementById('end-trip-notes').value.trim();
+  trip.inProgress = false;
+  delete trip.startedAt; // no longer needed once finished
+
+  const v = vehicles.find(x=>x.id===trip.vehicleId);
+  if (v && endOdo > v.odo) v.odo = endOdo;
+
+  save();
+  closeModal('modal-end-trip');
+  toast(`Trip ended — ${fmt(trip.distance)} km logged!`);
+  if (currentPage==='trips') renderTripList();
+  if (currentPage==='dashboard') renderDashboard();
+}
+
+function cancelLiveTrip() {
+  const id = document.getElementById('end-trip-id').value;
+  if (!confirm('Discard this trip? It will be deleted with no distance logged.')) return;
+  tripEntries = tripEntries.filter(x=>x.id!==id);
+  save();
+  closeModal('modal-end-trip');
+  toast('Trip discarded');
+  if (currentPage==='trips') renderTripList();
+  if (currentPage==='dashboard') renderDashboard();
+}
+
+function formatElapsed(startedAt) {
+  const ms = Date.now() - new Date(startedAt).getTime();
+  const mins = Math.floor(ms / 60000);
+  if (mins < 1) return 'just now';
+  if (mins < 60) return `${mins} min`;
+  const hrs = Math.floor(mins / 60);
+  const remMins = mins % 60;
+  return remMins > 0 ? `${hrs}h ${remMins}m` : `${hrs}h`;
+}
+
+// ─── HELPERS ─────────────────────────────────────────────────
+function populateVehicleSelect(selId) {
+  const sel = document.getElementById(selId);
+  sel.innerHTML = vehicles.map(v=>`<option value="${v.id}">${v.name}</option>`).join('');
+  if (!vehicles.length) sel.innerHTML = '<option value="">No vehicles — add one first</option>';
+}
+
+function vehicleEmoji(type) {
+  return { car:'🚗', bike:'🏍', scooter:'🛵', ev:'⚡', other:'🚌' }[type] || '🚗';
+}
+
+function purposeLabel(p) {
+  return { personal:'Personal', office:'Office', business:'Business', other:'Other' }[p] || p;
+}
+
+// Visual metadata for trip-purpose analytics (color + icon per category)
+const TRIP_PURPOSE_META = {
+  personal: { label:'Personal', color:'#3B82F6', icon:'🏠' },
+  office:   { label:'Office',   color:'#10B981', icon:'💼' },
+  business: { label:'Business', color:'#F59E0B', icon:'📈' },
+  other:    { label:'Other',    color:'#8B5CF6', icon:'📍' },
+};
+function purposeMeta(p) {
+  return TRIP_PURPOSE_META[p] || TRIP_PURPOSE_META.other;
+}
+
+// ─── EXPENSE MODAL ────────────────────────────────────────────
+let selectedExpCat = 'toll';
+
+function buildCatGrid(selected) {
+  const grid = document.getElementById('exp-cat-grid');
+  grid.innerHTML = EXP_CATS.map(c=>`
+    <div class="cat-btn ${c.id===selected?'selected':''}" onclick="selectExpCat('${c.id}')">
+      <div class="cat-icon">${c.icon}</div>
+      <div class="cat-label">${c.label}</div>
+    </div>`).join('');
+}
+
+function selectExpCat(id) {
+  selectedExpCat = id;
+  buildCatGrid(id);
+  const cat = EXP_CATS.find(c=>c.id===id);
+  if (cat) {
+    document.getElementById('exp-vendor-label').textContent = cat.vendorLabel;
+    document.getElementById('exp-vendor').placeholder = cat.vendorLabel + '…';
+  }
+}
+
+function openExpenseModal(id=null) {
+  populateVehicleSelect('exp-vehicle');
+  const m = document.getElementById('modal-expense');
+  document.getElementById('exp-edit-id').value = id || '';
+  document.getElementById('exp-modal-title').textContent = id ? 'Edit Expense' : 'Add Expense';
+  document.getElementById('exp-delete-btn').style.display = id ? 'block' : 'none';
+  if (id) {
+    const e = expenseEntries.find(x=>x.id===id);
+    if (e) {
+      selectedExpCat = e.category;
+      buildCatGrid(e.category);
+      document.getElementById('exp-vehicle').value = e.vehicleId;
+      document.getElementById('exp-date').value = e.date;
+      document.getElementById('exp-amount').value = e.amount;
+      document.getElementById('exp-desc').value = e.desc || '';
+      document.getElementById('exp-vendor').value = e.vendor || '';
+      document.getElementById('exp-notes').value = e.notes || '';
+    }
+  } else {
+    selectedExpCat = 'toll';
+    buildCatGrid('toll');
+    document.getElementById('exp-date').value = today();
+    ['exp-amount','exp-desc','exp-vendor','exp-notes'].forEach(x=>document.getElementById(x).value='');
+    if (expVehicleId) document.getElementById('exp-vehicle').value = expVehicleId;
+    else if (dashVehicleId) document.getElementById('exp-vehicle').value = dashVehicleId;
+  }
+  const cat = EXP_CATS.find(c=>c.id===selectedExpCat);
+  if (cat) {
+    document.getElementById('exp-vendor-label').textContent = cat.vendorLabel;
+    document.getElementById('exp-vendor').placeholder = cat.vendorLabel + '…';
+  }
+  if (window.clearModalSwipeStyles) window.clearModalSwipeStyles(m.id);
+  m.classList.add('open');
+}
+
+function saveExpenseEntry() {
+  const vid = document.getElementById('exp-vehicle').value;
+  if (!vid) { toast('Select a vehicle'); return; }
+  const amount = parseFloat(document.getElementById('exp-amount').value);
+  if (!amount) { toast('Enter an amount'); return; }
+  const id = document.getElementById('exp-edit-id').value || uid();
+  const entry = {
+    id, vehicleId: vid,
+    category: selectedExpCat,
+    date: document.getElementById('exp-date').value || today(),
+    amount,
+    desc: document.getElementById('exp-desc').value.trim(),
+    vendor: document.getElementById('exp-vendor').value.trim(),
+    notes: document.getElementById('exp-notes').value.trim(),
+    createdAt: new Date().toISOString()
+  };
+  const idx = expenseEntries.findIndex(x=>x.id===id);
+  if (idx>=0) expenseEntries[idx]=entry; else expenseEntries.push(entry);
+  save();
+  closeModal('modal-expense');
+  toast('Expense saved!');
+  if (currentPage==='expenses') renderExpenseList();
+  if (currentPage==='dashboard') renderDashboard();
+}
+
+function deleteExpenseEntry() {
+  const id = document.getElementById('exp-edit-id').value;
+  if (!confirm('Delete this expense?')) return;
+  expenseEntries = expenseEntries.filter(x=>x.id!==id);
+  save(); closeModal('modal-expense'); toast('Deleted');
+  if (currentPage==='expenses') renderExpenseList();
+  if (currentPage==='dashboard') renderDashboard();
+}
+
+// ─── EXPENSE LIST ─────────────────────────────────────────────
+function renderExpenseList() {
+  // Vehicle pills
+  const ev = document.getElementById('exp-vehicles');
+  let vhtml = '<div class="vpill '+(expVehicleId===null?'active':'')+'" onclick="setExpVehicle(null)">All</div>';
+  vhtml += vehicles.map(v=>`<div class="vpill ${v.id===expVehicleId?'active':''}" onclick="setExpVehicle('${v.id}')">${vehicleEmoji(v.type)} ${v.name}</div>`).join('');
+  ev.innerHTML = vhtml;
+
+  // Category strip — totals per category
+  let allExp = expVehicleId ? expenseEntries.filter(x=>x.vehicleId===expVehicleId) : expenseEntries;
+  const strip = document.getElementById('exp-cat-strip');
+  let shtml = `<div class="exp-strip-item" style="cursor:pointer;border:1.5px solid ${expCatFilter==='all'?'var(--primary)':'var(--border)'};border-radius:10px" onclick="setExpCat('all')">
+    <div class="exp-strip-icon">📊</div>
+    <div class="exp-strip-val">₹${fmt(allExp.reduce((a,x)=>a+x.amount,0))}</div>
+    <div class="exp-strip-label">All</div>
+  </div>`;
+  EXP_CATS.forEach(c=>{
+    const total = allExp.filter(x=>x.category===c.id).reduce((a,x)=>a+x.amount,0);
+    if (total===0) return;
+    shtml += `<div class="exp-strip-item" style="cursor:pointer;border:1.5px solid ${expCatFilter===c.id?'var(--primary)':'var(--border)'}" onclick="setExpCat('${c.id}')">
+      <div class="exp-strip-icon">${c.icon}</div>
+      <div class="exp-strip-val">₹${fmt(total)}</div>
+      <div class="exp-strip-label">${c.label}</div>
+    </div>`;
+  });
+  strip.innerHTML = shtml;
+
+  // Date filter
+  let entries = [...allExp];
+  if (expFilter !== 'all') {
+    const cutoff = new Date(); cutoff.setDate(cutoff.getDate() - parseInt(expFilter));
+    const cutStr = cutoff.toISOString().split('T')[0];
+    entries = entries.filter(x=>x.date >= cutStr);
+  }
+  // Cat filter
+  if (expCatFilter !== 'all') entries = entries.filter(x=>x.category===expCatFilter);
+
+  entries = entries.sort((a,b)=>b.date.localeCompare(a.date));
+
+  // This month total
+  const now = new Date();
+  const thisMonth = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}`;
+  const monthTotal = allExp.filter(x=>x.date.startsWith(thisMonth)).reduce((a,x)=>a+x.amount,0);
+  document.getElementById('exp-month-val').textContent = `₹${fmt(monthTotal)}`;
+  document.getElementById('exp-count').textContent = `${entries.length} entr${entries.length===1?'y':'ies'}`;
+
+  // Breakdown
+  const breakdown = document.getElementById('exp-breakdown-list');
+  const catTotals = EXP_CATS.map(c=>({ ...c, total: allExp.filter(x=>x.category===c.id).reduce((a,x)=>a+x.amount,0) })).filter(x=>x.total>0).sort((a,b)=>b.total-a.total);
+  const maxCat = catTotals[0]?.total || 1;
+  if (catTotals.length === 0) {
+    breakdown.innerHTML = '<div style="font-size:13px;color:var(--text3);text-align:center;padding:12px 0">No expenses yet</div>';
+  } else {
+    breakdown.innerHTML = catTotals.map(c=>`
+      <div class="breakdown-row">
+        <div class="breakdown-dot" style="background:${c.color}"></div>
+        <div class="breakdown-name">${c.icon} ${c.label}</div>
+        <div class="breakdown-bar-wrap"><div class="breakdown-bar-fill" style="width:${Math.round((c.total/maxCat)*100)}%;background:${c.color}"></div></div>
+        <div class="breakdown-val" style="color:${c.color}">₹${fmt(c.total)}</div>
+      </div>`).join('');
+  }
+
+  const inSelect = selectMode === 'expenses';
+  const el = document.getElementById('exp-list');
+  if (!entries.length) {
+    el.innerHTML = `<div class="empty"><div class="empty-icon">🧾</div><div class="empty-title">No expenses here</div><div class="empty-sub">Track toll, parking, repairs, service and more with the + button</div></div>`;
+    return;
+  }
+  el.innerHTML = entries.map(e=>{
+    const v = vehicles.find(x=>x.id===e.vehicleId);
+    const cat = EXP_CATS.find(c=>c.id===e.category) || EXP_CATS[EXP_CATS.length-1];
+    const isSel = selectedIds.has(e.id);
+    const checkHtml = inSelect ? `<div class="select-check"><svg viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="3" width="13" height="13"><polyline points="20 6 9 17 4 12"/></svg></div>` : '';
+    const clickAction = inSelect ? `toggleSelect('${e.id}')` : `openExpenseModal('${e.id}')`;
+    return `<div class="entry-card ${inSelect?'selectable':''} ${isSel?'selected-item':''}" data-id="${e.id}" onclick="${clickAction}">
+      ${checkHtml}
+      <div class="entry-dot ${e.category}" style="font-size:20px;background:${cat.color}22;width:40px;height:40px;border-radius:10px;display:flex;align-items:center;justify-content:center;flex-shrink:0">${cat.icon}</div>
+      <div class="entry-info">
+        <div class="entry-name">${e.desc || cat.label}${e.vendor?' · '+e.vendor:''}</div>
+        <div class="entry-meta">${v?.name||'?'} · ${fmtDate(e.date)}</div>
+      </div>
+      <div class="entry-amount">
+        <div class="entry-val" style="color:${cat.color}">₹${fmt(e.amount)}</div>
+        <div class="entry-sub">${cat.label}</div>
+      </div>
+    </div>`;
+  }).join('');
+  if (inSelect) updateSelectBar();
+}
+
+function setExpVehicle(id) { expVehicleId=id; renderExpenseList(); }
+function setExpCat(id) { expCatFilter=id; renderExpenseList(); }
+function setExpFilter(el, val) {
+  document.querySelectorAll('#page-expenses .filter-pill').forEach(x=>x.classList.remove('active'));
+  el.classList.add('active');
+  expFilter = val; renderExpenseList();
+}
+
+function clearSampleData() {
+  if (!confirm('Clear all sample/demo data? Your real entries will not be affected.')) return;
+  const seedIds = DB.get('fl_seed_ids', {});
+  const vIds = new Set(seedIds.vehicles || []);
+  const fIds = new Set(seedIds.fuel || []);
+  const tIds = new Set(seedIds.trips || []);
+  const eIds = new Set(seedIds.expenses || []);
+
+  vehicles      = vehicles.filter(x => !vIds.has(x.id));
+  fuelEntries   = fuelEntries.filter(x => !fIds.has(x.id));
+  tripEntries   = tripEntries.filter(x => !tIds.has(x.id));
+  expenseEntries= expenseEntries.filter(x => !eIds.has(x.id));
+
+  // If the selected vehicle was a seed vehicle, reset to All
+  if (dashVehicleId && vIds.has(dashVehicleId)) dashVehicleId = null;
+
+  DB.set('fl_seeded', false);
+  DB.set('fl_seed_ids', {});
+  save();
+  toast('Sample data cleared — your data is untouched!');
+  renderDashboard();
+}
+
+function updateSampleBanner() {
+  const banner = document.getElementById('sample-banner');
+  if (!banner) return;
+  // Check the flag AND verify seed vehicles actually still exist
+  const isSeeded = DB.get('fl_seeded', false);
+  if (!isSeeded) { banner.style.display = 'none'; return; }
+  const seedIds = DB.get('fl_seed_ids', {});
+  const seedVehicleIds = seedIds.vehicles || [];
+  const anyStillPresent = seedVehicleIds.some(id => vehicles.find(v => v.id === id));
+  if (!anyStillPresent) {
+    // Seed data was manually deleted — clean up the flag silently
+    DB.set('fl_seeded', false);
+    DB.set('fl_seed_ids', {});
+    banner.style.display = 'none';
+    return;
+  }
+  banner.style.display = 'flex';
+}
+
+// ─── DASHBOARD ────────────────────────────────────────────────
+// ─── ACTIVE TRIP CARD (DASHBOARD) ──────────────────────────────
+let activeTripTimerHandle = null;
+
+function renderActiveTripCard() {
+  const el = document.getElementById('active-trip-section');
+  if (!el) return;
+  const trips = getActiveTrips();
+
+  if (activeTripTimerHandle) { clearInterval(activeTripTimerHandle); activeTripTimerHandle = null; }
+
+  if (!trips.length) {
+    el.innerHTML = '';
+    return;
+  }
+
+  el.innerHTML = trips.map(trip => {
+    const v = vehicles.find(x=>x.id===trip.vehicleId);
+    return `
+    <div class="active-trip-card">
+      <div class="active-trip-header">
+        <div class="active-trip-dot"></div>
+        <div class="active-trip-label">Trip In Progress</div>
+        <div class="active-trip-elapsed" data-trip-id="${trip.id}">${formatElapsed(trip.startedAt)}</div>
+      </div>
+      <div class="active-trip-body">
+        <div class="active-trip-info">
+          <div class="active-trip-vehicle">${vehicleEmoji(v?.type)} ${v?.name||'Vehicle'}</div>
+          <div class="active-trip-meta">${trip.source||trip.destination ? `${trip.source||'?'} → ${trip.destination||'?'}` : `Started at ${fmt(trip.startOdo)} km`}</div>
+          <div class="active-trip-purpose">${purposeLabel(trip.purpose)}</div>
+        </div>
+        <button class="active-trip-end-btn" onclick="openEndTripModal('${trip.id}')">End Trip</button>
+      </div>
+    </div>`;
+  }).join('');
+
+  // Live-update every running trip's elapsed time every 30s
+  activeTripTimerHandle = setInterval(() => {
+    const stillRunning = getActiveTrips();
+    if (!stillRunning.length) { clearInterval(activeTripTimerHandle); activeTripTimerHandle = null; return; }
+    stillRunning.forEach(trip => {
+      const elEl = document.querySelector(`.active-trip-elapsed[data-trip-id="${trip.id}"]`);
+      if (elEl) elEl.textContent = formatElapsed(trip.startedAt);
+    });
+  }, 30000);
+}
+
+
+function renderDashboard() {
+  updateSampleBanner();
+  updateBackupBanner();
+  renderActiveTripCard();
+  document.getElementById('dash-date').textContent = new Date().toLocaleDateString('en-IN', { weekday:'long', day:'numeric', month:'long' });
+
+  // ── Vehicle selector ──────────────────────────────────────────
+  const dv = document.getElementById('dash-vehicles');
+  if (vehicles.length === 0) {
+    dv.innerHTML = '<div class="vpill vpill-add" onclick="openVehicleModal()">+ Add Vehicle</div>';
+  } else {
+    dv.innerHTML =
+      `<div class="vpill ${dashVehicleId===null?'active':''}" onclick="setDashVehicle(null)">All</div>` +
+      vehicles.map(v=>`<div class="vpill ${v.id===dashVehicleId?'active':''}" onclick="setDashVehicle('${v.id}')">${vehicleEmoji(v.type)} ${v.name}</div>`).join('');
+  }
+
+  const isAll = dashVehicleId === null;
+  const vFuel  = isAll ? fuelEntries    : fuelEntries.filter(x=>x.vehicleId===dashVehicleId);
+  const vTrips = isAll ? tripEntries    : tripEntries.filter(x=>x.vehicleId===dashVehicleId);
+  const vExp   = isAll ? expenseEntries : expenseEntries.filter(x=>x.vehicleId===dashVehicleId);
+  const curV   = isAll ? null : vehicles.find(x=>x.id===dashVehicleId);
+
+  // ── Odometer ──────────────────────────────────────────────────
+  const odoEl = document.getElementById('dash-odo');
+  if (curV) {
+    odoEl.innerHTML = `<div class="odo-display">
+      <div class="odo-label">Odometer · ${curV.name}</div>
+      <div class="odo-val">${fmt(curV.odo)}</div>
+      <div class="odo-unit">km · ${curV.fuel.toUpperCase()} · ${curV.reg||'—'}</div>
+    </div>`;
+  } else if (vehicles.length > 0) {
+    odoEl.innerHTML = `<div class="odo-strip">` +
+      vehicles.map(v=>`<div class="odo-strip-item">
+        <div class="odo-strip-name">${vehicleEmoji(v.type)} ${v.name}</div>
+        <div class="odo-strip-val">${fmt(v.odo)}</div>
+        <div class="odo-strip-km">km · ${v.reg||v.fuel}</div>
+      </div>`).join('') + `</div>`;
+  } else odoEl.innerHTML = '';
+
+  // ── Time helpers ──────────────────────────────────────────────
+  const now = new Date();
+  const thisMonth = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}`;
+  const lastMonthD = new Date(now); lastMonthD.setMonth(lastMonthD.getMonth()-1);
+  const lastMonth  = `${lastMonthD.getFullYear()}-${String(lastMonthD.getMonth()+1).padStart(2,'0')}`;
+
+  const mFuel   = vFuel.filter(x=>x.date.startsWith(thisMonth));
+  const lmFuel  = vFuel.filter(x=>x.date.startsWith(lastMonth));
+  const mTrips  = vTrips.filter(x=>x.date.startsWith(thisMonth));
+  const mExp    = vExp.filter(x=>x.date.startsWith(thisMonth));
+  const lmExp   = vExp.filter(x=>x.date.startsWith(lastMonth));
+
+  const fuelSpend    = mFuel.reduce((a,x)=>a+x.cost,0);
+  const lmFuelSpend  = lmFuel.reduce((a,x)=>a+x.cost,0);
+  const otherSpend   = mExp.reduce((a,x)=>a+x.amount,0);
+  const lmOtherSpend = lmExp.reduce((a,x)=>a+x.amount,0);
+  const totalSpend   = fuelSpend + otherSpend;
+  const lmTotalSpend = lmFuelSpend + lmOtherSpend;
+  const totalDist    = mTrips.reduce((a,x)=>a+x.distance,0);
+  const totalLitres  = mFuel.reduce((a,x)=>a+x.litres,0);
+
+  // ── Mileage (full-tank to full-tank) ──────────────────────────
+  const sortedFuel = [...vFuel].sort((a,b)=>a.odo-b.odo);
+  let mileageVals=[], mileageDates=[];
+  for (let i=1; i<sortedFuel.length; i++) {
+    if (sortedFuel[i].fullTank && sortedFuel[i-1].fullTank && sortedFuel[i].odo>sortedFuel[i-1].odo) {
+      const km=sortedFuel[i].odo-sortedFuel[i-1].odo, l=sortedFuel[i].litres;
+      if (km>0&&l>0) { mileageVals.push(km/l); mileageDates.push(sortedFuel[i].date); }
+    }
+  }
+  const avgMileage   = mileageVals.length ? mileageVals.reduce((a,b)=>a+b,0)/mileageVals.length : null;
+  const bestMileage  = mileageVals.length ? Math.max(...mileageVals) : null;
+  const worstMileage = mileageVals.length ? Math.min(...mileageVals) : null;
+  const lastMileage  = mileageVals.length ? mileageVals[mileageVals.length-1] : null;
+  const costPerKm    = totalLitres&&totalDist ? fuelSpend/totalDist : null;
+
+  // ── Month-over-month ──────────────────────────────────────────
+  const momPct = lmTotalSpend>0 ? ((totalSpend-lmTotalSpend)/lmTotalSpend*100) : null;
+  const momHtml = momPct!==null
+    ? `<div class="stat-change ${momPct<=0?'up':'down'}">${momPct<=0?'▼':'▲'} ${Math.abs(momPct).toFixed(0)}% vs last month</div>`
+    : '';
+
+  // ── Stat cards ────────────────────────────────────────────────
+  const heroStat = {
+    label:'Total Cost This Month', icon:'purple',
+    val:`₹${fmt(totalSpend)}`,
+    iconSvg:'<path d="M21 4H3a1 1 0 00-1 1v14a1 1 0 001 1h18a1 1 0 001-1V5a1 1 0 00-1-1z"/><path d="M1 10h22"/><path d="M12 15h3M7 15h1"/>',
+    unit:`Fuel ₹${fmt(fuelSpend)} + Other ₹${fmt(otherSpend)}`, extra:momHtml
+  };
+  const trioStats = [
+    { label:'Distance', icon:'blue',
+      val:`${fmt(totalDist)}`,
+      iconSvg:'<path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z"/>',
+      unit:'km this month' },
+    { label:'Avg Mileage', icon:'green',
+      val:avgMileage?`${avgMileage.toFixed(1)}`:'—',
+      iconSvg:'<path d="M13.49 5.48c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zm-3.6 13.9l1-4.4 2.1 2v6h2v-7.5l-2.1-2 .6-3c1.3 1.5 3.3 2.5 5.5 2.5v-2c-1.9 0-3.5-1-4.3-2.4l-1-1.6c-.4-.6-1-1-1.7-1-.3 0-.5.1-.8.1l-5.2 2.2v4.7h2v-3.4l1.8-.7-1.6 8.1-4.9-1-.4 2 7 1.4z"/>',
+      unit:'km/l' },
+    { label:'Cost / KM', icon:'amber',
+      val:costPerKm?`₹${costPerKm.toFixed(2)}`:'—',
+      iconSvg:'<path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 14.93V18h-2v-1.07C9.39 16.57 8 15.4 8 14c0-.55.45-1 1-1s1 .45 1 1c0 .55.45 1 1 1h2c.55 0 1-.45 1-1s-.45-1-1-1h-2c-1.66 0-3-1.34-3-3 0-1.4 1.39-2.57 3-2.93V6h2v1.07c1.61.36 3 1.53 3 2.93 0 .55-.45 1-1 1s-1-.45-1-1c0-.55-.45-1-1-1h-2c-.55 0-1 .45-1 1s.45 1 1 1h2c1.66 0 3 1.34 3 3 0 1.4-1.39 2.57-3 2.93z"/>',
+      unit:'fuel only' },
+  ];
+
+  document.getElementById('dash-stats').innerHTML = `
+    <div class="stat-card ${heroStat.icon} wide">
+      <div class="stat-icon ${heroStat.icon}"><svg viewBox="0 0 24 24" fill="currentColor">${heroStat.iconSvg}</svg></div>
+      <div class="stat-label">${heroStat.label}</div>
+      <div class="stat-val">${heroStat.val}</div>
+      <div class="stat-unit">${heroStat.unit}</div>
+      ${heroStat.extra||''}
+    </div>
+    <div class="stats-trio">
+      ${trioStats.map(s=>`
+        <div class="stat-card ${s.icon}">
+          <div class="stat-icon ${s.icon}"><svg viewBox="0 0 24 24" fill="currentColor">${s.iconSvg}</svg></div>
+          <div class="stat-label">${s.label}</div>
+          <div class="stat-val ${s.val.length>5?'sm':''}">${s.val}</div>
+          <div class="stat-unit">${s.unit}</div>
+        </div>`).join('')}
+    </div>`;
+
+  // ── Insight chips ─────────────────────────────────────────────
+  const insights = [];
+  const lastFill = [...vFuel].sort((a,b)=>b.date.localeCompare(a.date))[0];
+  if (lastFill) {
+    const daysAgo = Math.round((Date.now()-new Date(lastFill.date))/(864e5));
+    insights.push({ label:'Last Fill', val:daysAgo===0?'Today':daysAgo===1?'Yesterday':`${daysAgo}d ago`, sub:`₹${fmt(lastFill.cost)} · ${lastFill.litres}L`, color:'var(--amber)' });
+  }
+  if (bestMileage) {
+    const bi = mileageVals.indexOf(bestMileage);
+    insights.push({ label:'Best Mileage', val:`${bestMileage.toFixed(1)} km/l`, sub:mileageDates[bi]?fmtDate(mileageDates[bi]):'', color:'var(--green)' });
+  }
+  const allPpl = vFuel.filter(x=>x.pricePerL>0);
+  if (allPpl.length) {
+    const avgPpl = allPpl.reduce((a,x)=>a+x.pricePerL,0)/allPpl.length;
+    const lastPpl = [...vFuel].sort((a,b)=>b.date.localeCompare(a.date)).find(x=>x.pricePerL>0);
+    insights.push({ label:'Avg Fuel Price', val:`₹${avgPpl.toFixed(2)}/L`, sub:lastPpl?`Last ₹${lastPpl.pricePerL.toFixed(2)}/L`:'', color:'var(--primary)' });
+  }
+  const m6keys = [];
+  for (let i=5;i>=0;i--) { const d=new Date(); d.setMonth(d.getMonth()-i); m6keys.push(`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`); }
+  const m6spends = m6keys.map(mk=>{
+    return vFuel.filter(x=>x.date.startsWith(mk)).reduce((a,x)=>a+x.cost,0)
+         + vExp.filter(x=>x.date.startsWith(mk)).reduce((a,x)=>a+x.amount,0);
+  }).filter(v=>v>0);
+  if (m6spends.length>1) insights.push({ label:'6-Mo Avg Spend', val:`₹${fmt(m6spends.reduce((a,b)=>a+b,0)/m6spends.length)}`, sub:'per month', color:'var(--purple)' });
+  if (worstMileage&&mileageVals.length>1) insights.push({ label:'Worst Mileage', val:`${worstMileage.toFixed(1)} km/l`, sub:'lowest recorded', color:'var(--red)' });
+
+  // Top trip purpose this month (Personal / Office / Business / Other)
+  const mTripsCompleted = mTrips.filter(x=>!x.inProgress && x.distance>0);
+  if (mTripsCompleted.length) {
+    const byPurpose = {};
+    mTripsCompleted.forEach(t => { const p=t.purpose||'other'; byPurpose[p]=(byPurpose[p]||0)+t.distance; });
+    const top = Object.entries(byPurpose).sort((a,b)=>b[1]-a[1])[0];
+    if (top) {
+      const meta = purposeMeta(top[0]);
+      insights.push({ label:'Top Trip Type', val:`${meta.icon} ${meta.label}`, sub:`${fmt(top[1])} km this month`, color:meta.color });
+    }
+  }
+
+  document.getElementById('dash-insights').innerHTML = insights.map(i=>`
+    <div class="insight-chip">
+      <div class="insight-label">${i.label}</div>
+      <div class="insight-val" style="color:${i.color}">${i.val}</div>
+      ${i.sub?`<div class="insight-sub">${i.sub}</div>`:''}
+    </div>`).join('');
+
+  // ── Charts ────────────────────────────────────────────────────
+  const months=[];
+  for (let i=5;i>=0;i--) {
+    const d=new Date(); d.setMonth(d.getMonth()-i);
+    months.push({ key:`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`, label:getMonthLabel(-i) });
+  }
+  const totalCostByMonth = months.map(m=>{
+    const f=vFuel.filter(x=>x.date.startsWith(m.key)).reduce((a,x)=>a+x.cost,0);
+    const e=vExp.filter(x=>x.date.startsWith(m.key)).reduce((a,x)=>a+x.amount,0);
+    return f+e;
+  });
+  const distByMonth    = months.map(m=>vTrips.filter(x=>x.date.startsWith(m.key)).reduce((a,x)=>a+x.distance,0));
+  const mileageByMonth = months.map(m=>{
+    const fills=mileageVals.filter((_,i)=>mileageDates[i]?.startsWith(m.key));
+    return fills.length ? fills.reduce((a,b)=>a+b,0)/fills.length : 0;
+  });
+
+  renderBarChart('chart-fuel',    totalCostByMonth, months.map(m=>m.label), '#8B5CF6');
+  renderBarChart('chart-dist',    distByMonth,      months.map(m=>m.label), '#3B82F6');
+  renderBarChart('chart-mileage', mileageByMonth,   months.map(m=>m.label), '#10B981');
+
+  // ── Lifetime summary ──────────────────────────────────────────
+  const ltFuelSpend = vFuel.reduce((a,x)=>a+x.cost,0);
+  const ltExpSpend  = vExp.reduce((a,x)=>a+x.amount,0);
+  const ltDist      = vTrips.reduce((a,x)=>a+x.distance,0);
+  const ltLitres    = vFuel.reduce((a,x)=>a+x.litres,0);
+
+  const ltHero = {
+    label:'Total Spent', icon:'purple',
+    val:`₹${fmt(ltFuelSpend+ltExpSpend)}`, unit:`Fuel ₹${fmt(ltFuelSpend)} + Other ₹${fmt(ltExpSpend)}`,
+    iconSvg:'<path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 14.93V18h-2v-1.07C9.39 16.57 8 15.4 8 14c0-.55.45-1 1-1s1 .45 1 1c0 .55.45 1 1 1h2c.55 0 1-.45 1-1s-.45-1-1-1h-2c-1.66 0-3-1.34-3-3 0-1.4 1.39-2.57 3-2.93V6h2v1.07c1.61.36 3 1.53 3 2.93 0 .55-.45 1-1 1s-1-.45-1-1c0-.55-.45-1-1-1h-2c-.55 0-1 .45-1 1s.45 1 1 1h2c1.66 0 3 1.34 3 3 0 1.4-1.39 2.57-3 2.93z"/>'
+  };
+  const ltTrio = [
+    { label:'Distance', icon:'blue', val:`${fmt(ltDist)}`, unit:`km · ${vTrips.length} trips`,
+      iconSvg:'<path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z"/>' },
+    { label:'Total Fuel', icon:'amber', val:`${fmt(ltLitres,0)}`, unit:`L · ${vFuel.length} fills`,
+      iconSvg:'<path d="M3 22V8l6-6h8l4 4v16"/><path d="M17 8h2a2 2 0 012 2v4l-2 2"/>' },
+    { label:'Avg Mileage', icon:'green', val:avgMileage?`${avgMileage.toFixed(1)}`:'—', unit:'km/l',
+      iconSvg:'<path d="M13.49 5.48c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zm-3.6 13.9l1-4.4 2.1 2v6h2v-7.5l-2.1-2 .6-3c1.3 1.5 3.3 2.5 5.5 2.5v-2c-1.9 0-3.5-1-4.3-2.4l-1-1.6c-.4-.6-1-1-1.7-1-.3 0-.5.1-.8.1l-5.2 2.2v4.7h2v-3.4l1.8-.7-1.6 8.1-4.9-1-.4 2 7 1.4z"/>' },
+  ];
+
+  document.getElementById('dash-lifetime').innerHTML = `
+    <div class="stat-card ${ltHero.icon} wide">
+      <div class="stat-icon ${ltHero.icon}"><svg viewBox="0 0 24 24" fill="currentColor">${ltHero.iconSvg}</svg></div>
+      <div class="stat-label">${ltHero.label}</div>
+      <div class="stat-val">${ltHero.val}</div>
+      <div class="stat-unit">${ltHero.unit}</div>
+    </div>
+    <div class="stats-trio">
+      ${ltTrio.map(s=>`
+        <div class="stat-card ${s.icon}">
+          <div class="stat-icon ${s.icon}"><svg viewBox="0 0 24 24" fill="currentColor">${s.iconSvg}</svg></div>
+          <div class="stat-label">${s.label}</div>
+          <div class="stat-val ${s.val.length>5?'sm':''}">${s.val}</div>
+          <div class="stat-unit">${s.unit}</div>
+        </div>`).join('')}
+    </div>`;
+
+  // ── Recent activity ───────────────────────────────────────────
+  const allRecent = [
+    ...vFuel.map(x=>({...x,_type:'fuel'})),
+    ...vTrips.map(x=>({...x,_type:'trip'})),
+    ...vExp.map(x=>({...x,_type:'expense'}))
+  ].sort((a,b)=>b.date.localeCompare(a.date)).slice(0,10);
+
+  const rl = document.getElementById('dash-recent');
+  if (!allRecent.length) {
+    rl.innerHTML = `<div class="empty"><div class="empty-icon">🚗</div><div class="empty-title">No entries yet</div><div class="empty-sub">Add your first fuel fill or trip using the + button</div></div>`;
+    return;
+  }
+  rl.innerHTML = allRecent.map(e=>{
+    const v = vehicles.find(x=>x.id===e.vehicleId);
+    if (e._type==='fuel') return `
+      <div class="entry-card" onclick="openFuelModal('${e.id}')">
+        <div class="entry-dot fuel"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="20" height="20"><path d="M3 22V8l6-6h8l4 4v16"/><path d="M17 8h2a2 2 0 012 2v4l-2 2"/></svg></div>
+        <div class="entry-info">
+          <div class="entry-name">${v?.name||'Unknown'}</div>
+          <div class="entry-meta">${fmtDate(e.date)} · ${e.litres}L${e.station?' · '+e.station:''}</div>
+        </div>
+        <div class="entry-amount">
+          <div class="entry-val amber">₹${fmt(e.cost)}</div>
+          <div class="entry-sub">₹${e.pricePerL?.toFixed(1)}/L</div>
+        </div>
+      </div>`;
+    if (e._type==='trip') {
+      const routeLabel = (e.source && e.destination) ? `${e.source} → ${e.destination}`
+                         : e.destination ? `To ${e.destination}`
+                         : e.source ? `From ${e.source}`
+                         : purposeLabel(e.purpose);
+      return `
+      <div class="entry-card" onclick="openTripModal('${e.id}')">
+        <div class="entry-dot trip"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="20" height="20"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg></div>
+        <div class="entry-info">
+          <div class="entry-name">${routeLabel}</div>
+          <div class="entry-meta">${v?.name||'Unknown'} · ${fmtDate(e.date)}</div>
+        </div>
+        <div class="entry-amount">
+          <div class="entry-val">${fmt(e.distance)}</div>
+          <div class="entry-sub">km</div>
+        </div>
+      </div>`;
+    }
+    const cat = EXP_CATS.find(c=>c.id===e.category)||EXP_CATS[EXP_CATS.length-1];
+    return `
+      <div class="entry-card" onclick="openExpenseModal('${e.id}')">
+        <div class="entry-dot" style="font-size:20px;background:${cat.color}22;width:40px;height:40px;border-radius:10px;display:flex;align-items:center;justify-content:center;flex-shrink:0">${cat.icon}</div>
+        <div class="entry-info">
+          <div class="entry-name">${e.desc||cat.label}</div>
+          <div class="entry-meta">${v?.name||'Unknown'} · ${fmtDate(e.date)}</div>
+        </div>
+        <div class="entry-amount">
+          <div class="entry-val" style="color:${cat.color}">₹${fmt(e.amount)}</div>
+          <div class="entry-sub">${cat.label}</div>
+        </div>
+      </div>`;
+  }).join('');
+}
+
+function setDashVehicle(id) {
+  dashVehicleId = id;
+  renderDashboard();
+}
+
+function renderBarChart(elId, vals, labels, color) {
+  const el = document.getElementById(elId);
+  const max = Math.max(...vals, 1);
+
+  // Y-axis: 3 labels — max, half, 0
+  const fmtY = v => v >= 1000 ? `${(v/1000).toFixed(v>=10000?0:1)}k` : String(Math.round(v));
+  const yHtml = `
+    <div class="bar-chart-yaxis">
+      <div class="bar-chart-ylabel">${fmtY(max)}</div>
+      <div class="bar-chart-ylabel">${fmtY(max/2)}</div>
+      <div class="bar-chart-ylabel">0</div>
+    </div>`;
+
+  const barsHtml = vals.map((v, i) => {
+    const pct = max > 0 ? (v / max) : 0;
+    const barH = Math.max(2, Math.round(pct * 88)); // 88px usable bar height
+    const valLabel = v > 0 ? (v >= 1000 ? `${(v/1000).toFixed(1)}k` : String(Math.round(v))) : '';
+    return `<div class="bar-wrap">
+      <div class="bar-val ${v>0?'visible':''}">${valLabel}</div>
+      <div class="bar" style="background:${color};opacity:${v>0?1:.15};height:${barH}px"></div>
+      <div class="bar-label">${labels[i]}</div>
+    </div>`;
+  }).join('');
+
+  el.innerHTML = `<div class="bar-chart-wrap">${yHtml}<div class="bar-chart">${barsHtml}</div></div>`;
+}
+
+// ─── MULTI-SELECT ─────────────────────────────────────────────
+let selectMode = false;       // which page is in select mode: false | 'fuel' | 'trips' | 'expenses'
+let selectedIds = new Set();  // IDs currently selected
+
+function toggleSelectMode(page) {
+  if (selectMode === page) {
+    exitSelectMode();
+  } else {
+    exitSelectMode(); // clean up any previous
+    selectMode = page;
+    selectedIds.clear();
+    const btn = document.getElementById(page + '-select-btn');
+    if (btn) btn.classList.add('active');
+    reRenderCurrentList();
+    updateSelectBar();
+  }
+}
+
+function exitSelectMode() {
+  if (!selectMode) return;
+  const btn = document.getElementById(selectMode + '-select-btn');
+  if (btn) btn.classList.remove('active');
+  selectMode = false;
+  selectedIds.clear();
+  document.getElementById('select-bar').classList.remove('visible');
+  document.getElementById('fab').style.display = 'flex';
+  reRenderCurrentList();
+}
+
+function reRenderCurrentList() {
+  const p = selectMode || currentPage;
+  if (p === 'fuel') renderFuelList();
+  else if (p === 'trips') renderTripList();
+  else if (p === 'expenses') renderExpenseList();
+}
+
+function toggleSelect(id) {
+  if (selectedIds.has(id)) selectedIds.delete(id);
+  else selectedIds.add(id);
+  // Toggle class on the card without full re-render for performance
+  const card = document.querySelector(`[data-id="${id}"]`);
+  if (card) {
+    card.classList.toggle('selected-item', selectedIds.has(id));
+  }
+  updateSelectBar();
+}
+
+function selectAll() {
+  // Collect all visible entry IDs from the current list
+  const cards = document.querySelectorAll('[data-id]');
+  const allIds = [...cards].map(c => c.dataset.id);
+  const allSelected = allIds.every(id => selectedIds.has(id));
+  if (allSelected) {
+    allIds.forEach(id => selectedIds.delete(id));
+  } else {
+    allIds.forEach(id => selectedIds.add(id));
+  }
+  // Update card classes
+  cards.forEach(c => c.classList.toggle('selected-item', selectedIds.has(c.dataset.id)));
+  updateSelectBar();
+}
+
+function updateSelectBar() {
+  const bar = document.getElementById('select-bar');
+  const label = document.getElementById('select-bar-label');
+  const delBtn = document.getElementById('select-bar-delete');
+  const allBtn = document.getElementById('select-bar-all');
+  const n = selectedIds.size;
+  const totalCards = document.querySelectorAll('[data-id]').length;
+
+  if (!selectMode) {
+    bar.classList.remove('visible');
+    document.getElementById('fab').style.display = 'flex';
+    return;
+  }
+  bar.classList.add('visible');
+  document.getElementById('fab').style.display = 'none';
+  label.textContent = n === 0 ? 'Tap to select' : `${n} selected`;
+  delBtn.disabled = n === 0;
+  allBtn.textContent = (n === totalCards && totalCards > 0) ? 'None' : 'All';
+}
+
+function deleteSelected() {
+  if (!selectedIds.size) return;
+  const n = selectedIds.size;
+  if (!confirm(`Delete ${n} entr${n === 1 ? 'y' : 'ies'}? This cannot be undone.`)) return;
+  const ids = new Set(selectedIds);
+  if (selectMode === 'fuel') {
+    fuelEntries = fuelEntries.filter(x => !ids.has(x.id));
+  } else if (selectMode === 'trips') {
+    tripEntries = tripEntries.filter(x => !ids.has(x.id));
+  } else if (selectMode === 'expenses') {
+    expenseEntries = expenseEntries.filter(x => !ids.has(x.id));
+  }
+  save();
+  toast(`${n} entr${n === 1 ? 'y' : 'ies'} deleted`);
+  exitSelectMode();
+  if (currentPage === 'dashboard') renderDashboard();
+}
+
+// ─── FUEL LIST ────────────────────────────────────────────────
+function renderFuelList() {
+  // Vehicles
+  const fv = document.getElementById('fuel-vehicles');
+  let vhtml = '<div class="vpill ' + (fuelVehicleId===null?'active':'') + '" onclick="setFuelVehicle(null)">All</div>';
+  vhtml += vehicles.map(v=>`<div class="vpill ${v.id===fuelVehicleId?'active':''}" onclick="setFuelVehicle('${v.id}')">${vehicleEmoji(v.type)} ${v.name}</div>`).join('');
+  fv.innerHTML = vhtml;
+
+  let entries = fuelVehicleId ? fuelEntries.filter(x=>x.vehicleId===fuelVehicleId) : fuelEntries;
+  if (fuelFilter !== 'all') {
+    const cutoff = new Date(); cutoff.setDate(cutoff.getDate() - parseInt(fuelFilter));
+    const cutStr = cutoff.toISOString().split('T')[0];
+    entries = entries.filter(x=>x.date >= cutStr);
+  }
+  entries = [...entries].sort((a,b)=>b.date.localeCompare(a.date));
+  document.getElementById('fuel-count').textContent = `${entries.length} entr${entries.length===1?'y':'ies'}`;
+
+  const inSelect = selectMode === 'fuel';
+  const el = document.getElementById('fuel-list');
+  if (!entries.length) {
+    el.innerHTML = `<div class="empty"><div class="empty-icon">⛽</div><div class="empty-title">No fuel entries</div><div class="empty-sub">Tap + to log your first refuel</div></div>`;
+    return;
+  }
+  el.innerHTML = entries.map(e=>{
+    const v = vehicles.find(x=>x.id===e.vehicleId);
+    const isSel = selectedIds.has(e.id);
+    const checkHtml = inSelect ? `<div class="select-check"><svg viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="3" width="13" height="13"><polyline points="20 6 9 17 4 12"/></svg></div>` : '';
+    const clickAction = inSelect ? `toggleSelect('${e.id}')` : `openFuelModal('${e.id}')`;
+    return `<div class="entry-card ${inSelect?'selectable':''} ${isSel?'selected-item':''}" data-id="${e.id}" onclick="${clickAction}">
+      ${checkHtml}
+      <div class="entry-dot fuel"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="20" height="20"><path d="M3 22V8l6-6h8l4 4v16"/><path d="M17 8h2a2 2 0 012 2v4l-2 2"/></svg></div>
+      <div class="entry-info">
+        <div class="entry-name">${v?.name||'?'} ${e.fullTank?'🔵':''}</div>
+        <div class="entry-meta">${fmtDate(e.date)}${e.station?' · '+e.station:''} · ${fmt(e.odo)} km</div>
+      </div>
+      <div class="entry-amount">
+        <div class="entry-val amber">₹${fmt(e.cost)}</div>
+        <div class="entry-sub">${e.litres}L · ₹${e.pricePerL?.toFixed(1)}/L</div>
+      </div>
+    </div>`;
+  }).join('');
+  if (inSelect) updateSelectBar();
+}
+
+function setFuelVehicle(id) { fuelVehicleId=id; renderFuelList(); }
+function setFuelFilter(el, val) {
+  document.querySelectorAll('#page-fuel .filter-pill').forEach(x=>x.classList.remove('active'));
+  el.classList.add('active');
+  fuelFilter = val; renderFuelList();
+}
+
+// ─── TRIPS LIST ───────────────────────────────────────────────
+function renderTripList() {
+  const tv = document.getElementById('trips-vehicles');
+  let vhtml = '<div class="vpill ' + (tripVehicleId===null?'active':'') + '" onclick="setTripVehicle(null)">All</div>';
+  vhtml += vehicles.map(v=>`<div class="vpill ${v.id===tripVehicleId?'active':''}" onclick="setTripVehicle('${v.id}')">${vehicleEmoji(v.type)} ${v.name}</div>`).join('');
+  tv.innerHTML = vhtml;
+
+  // Vehicle-scoped set used for the breakdown (always shows all purposes, ignores the purpose filter)
+  const vehicleScoped = tripVehicleId ? tripEntries.filter(x=>x.vehicleId===tripVehicleId) : tripEntries;
+  renderTripPurposeBreakdown(vehicleScoped);
+
+  let entries = vehicleScoped;
+  if (tripFilter !== 'all') entries = entries.filter(x=>x.purpose===tripFilter);
+  entries = [...entries].sort((a,b)=>b.date.localeCompare(a.date));
+  document.getElementById('trips-count').textContent = `${entries.length} entr${entries.length===1?'y':'ies'}`;
+
+  const inSelect = selectMode === 'trips';
+  const el = document.getElementById('trips-list');
+  if (!entries.length) {
+    el.innerHTML = `<div class="empty"><div class="empty-icon">🗺️</div><div class="empty-title">No trips logged</div><div class="empty-sub">Tap + to record a journey</div></div>`;
+    return;
+  }
+  el.innerHTML = entries.map(e=>{
+    const v = vehicles.find(x=>x.id===e.vehicleId);
+    const isSel = selectedIds.has(e.id);
+    const checkHtml = inSelect ? `<div class="select-check"><svg viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="3" width="13" height="13"><polyline points="20 6 9 17 4 12"/></svg></div>` : '';
+    if (e.inProgress) {
+      const clickAction = inSelect ? `toggleSelect('${e.id}')` : `openEndTripModal('${e.id}')`;
+      return `<div class="entry-card ${inSelect?'selectable':''} ${isSel?'selected-item':''}" data-id="${e.id}" onclick="${clickAction}" style="border:1px solid rgba(16,185,129,.3)">
+        ${checkHtml}
+        <div class="entry-dot trip" style="background:rgba(16,185,129,.15);color:var(--green)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="20" height="20"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg></div>
+        <div class="entry-info">
+          <div class="entry-name">${purposeLabel(e.purpose)} <span style="color:var(--green);font-size:11px;font-weight:700">● RUNNING</span></div>
+          <div class="entry-meta">${v?.name||'?'} · started ${fmtDate(e.date)}</div>
+        </div>
+        <div class="entry-amount">
+          <div class="entry-val" style="color:var(--green);font-size:12px">Tap to end</div>
+        </div>
+      </div>`;
+    }
+    const clickAction = inSelect ? `toggleSelect('${e.id}')` : `openTripModal('${e.id}')`;
+    const routeLabel = (e.source && e.destination) ? `${e.source} → ${e.destination}`
+                       : e.destination ? `To ${e.destination}`
+                       : e.source ? `From ${e.source}`
+                       : purposeLabel(e.purpose);
+    return `<div class="entry-card ${inSelect?'selectable':''} ${isSel?'selected-item':''}" data-id="${e.id}" onclick="${clickAction}">
+      ${checkHtml}
+      <div class="entry-dot trip"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="20" height="20"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg></div>
+      <div class="entry-info">
+        <div class="entry-name">${routeLabel}${e.notes?' · '+e.notes.slice(0,20):''}</div>
+        <div class="entry-meta">${v?.name||'?'} · ${fmtDate(e.date)} · <span style="text-transform:capitalize">${purposeLabel(e.purpose)}</span></div>
+      </div>
+      <div class="entry-amount">
+        <div class="entry-val">${fmt(e.distance)}</div>
+        <div class="entry-sub">km</div>
+      </div>
+    </div>`;
+  }).join('');
+  if (inSelect) updateSelectBar();
+}
+
+// Breakdown of completed trip distance grouped by purpose (personal/office/business/other)
+function renderTripPurposeBreakdown(entries) {
+  const el = document.getElementById('trip-purpose-breakdown');
+  if (!el) return;
+
+  const completed = entries.filter(x => !x.inProgress && x.distance > 0);
+  if (!completed.length) {
+    el.innerHTML = '<div style="font-size:13px;color:var(--text3);text-align:center;padding:12px 0">No completed trips yet</div>';
+    return;
+  }
+
+  const purposeKeys = ['personal','office','business','other'];
+  const totals = purposeKeys.map(p => {
+    const trips = completed.filter(x => (x.purpose||'other') === p);
+    const dist = trips.reduce((a,x)=>a+x.distance, 0);
+    return { purpose:p, dist, count:trips.length, meta:purposeMeta(p) };
+  }).filter(x => x.dist > 0).sort((a,b)=>b.dist-a.dist);
+
+  const grandTotal = totals.reduce((a,x)=>a+x.dist, 0);
+  const maxDist = Math.max(...totals.map(x=>x.dist), 1);
+
+  el.innerHTML = totals.map(t => {
+    const pct = grandTotal > 0 ? Math.round((t.dist/grandTotal)*100) : 0;
+    return `
+    <div class="breakdown-row">
+      <div class="breakdown-dot" style="background:${t.meta.color}"></div>
+      <div class="breakdown-name">${t.meta.icon} ${t.meta.label} <span style="color:var(--text3)">· ${t.count} trip${t.count===1?'':'s'}</span></div>
+      <div class="breakdown-bar-wrap"><div class="breakdown-bar-fill" style="width:${Math.round((t.dist/maxDist)*100)}%;background:${t.meta.color}"></div></div>
+      <div class="breakdown-val" style="color:${t.meta.color}">${fmt(t.dist)} km <span style="color:var(--text3);font-weight:500">(${pct}%)</span></div>
+    </div>`;
+  }).join('');
+}
+
+function setTripVehicle(id) { tripVehicleId=id; renderTripList(); }
+function setTripFilter(el, val) {
+  document.querySelectorAll('#page-trips .filter-pill').forEach(x=>x.classList.remove('active'));
+  el.classList.add('active');
+  tripFilter = val; renderTripList();
+}
+
+// ─── VEHICLES LIST ────────────────────────────────────────────
+function renderVehiclesList() {
+  const el = document.getElementById('vehicles-list');
+  if (!vehicles.length) {
+    el.innerHTML = `<div class="empty"><div class="empty-icon">🚗</div><div class="empty-title">No vehicles yet</div><div class="empty-sub">Tap + to add your first vehicle</div></div>`;
+    return;
+  }
+  el.innerHTML = vehicles.map(v=>{
+    const vf = fuelEntries.filter(x=>x.vehicleId===v.id);
+    const vt = tripEntries.filter(x=>x.vehicleId===v.id);
+    const ve = expenseEntries.filter(x=>x.vehicleId===v.id);
+    const fuelSpend = vf.reduce((a,x)=>a+x.cost,0);
+    const otherSpend = ve.reduce((a,x)=>a+x.amount,0);
+    const totalSpend = fuelSpend + otherSpend;
+    const totalKm = vt.reduce((a,x)=>a+x.distance,0);
+    return `<div class="vehicle-card" onclick="openVehicleModal('${v.id}')">
+      <div class="vehicle-icon">${vehicleEmoji(v.type)}</div>
+      <div class="vehicle-info">
+        <div class="vehicle-name">${v.name}</div>
+        <div class="vehicle-reg">${v.reg||'—'}</div>
+        <div class="vehicle-stats-row">
+          <div class="vehicle-stat"><b>${fmt(v.odo)}</b> km</div>
+          <div class="vehicle-stat"><b>₹${fmt(totalSpend)}</b> total</div>
+          <div class="vehicle-stat"><b>${fmt(totalKm)}</b> km logged</div>
+        </div>
+        <div style="display:flex;gap:6px;margin-top:6px">
+          <div style="font-size:10px;color:var(--text3)">Fuel <b style="color:var(--amber)">₹${fmt(fuelSpend)}</b></div>
+          <div style="font-size:10px;color:var(--text3)">Other <b style="color:var(--purple)">₹${fmt(otherSpend)}</b></div>
+        </div>
+        <div class="progress-bar"><div class="progress-fill" style="width:${Math.min(100,(v.odo/200000)*100)}%;background:var(--primary)"></div></div>
+      </div>
+      <span class="badge ${v.fuel}">${v.fuel.toUpperCase()}</span>
+    </div>`;
+  }).join('');
+}
+
+// ─── EXPORT / IMPORT ─────────────────────────────────────────
+// ─── BACKUP & RESTORE ──────────────────────────────────────────
+function buildBackupPayload() {
+  return { vehicles, fuelEntries, tripEntries, expenseEntries, exportedAt: new Date().toISOString(), version: 2 };
+}
+
+function markBackupDone() {
+  DB.set('fl_last_backup', new Date().toISOString());
+  updateBackupBanner();
+  updateBackupSettingsRow();
+}
+
+function exportData(format) {
+  if (format === 'json') {
+    const data = buildBackupPayload();
+    download('fuellog-backup.json', JSON.stringify(data, null, 2), 'application/json');
+    toast('Backup downloaded!');
+    markBackupDone();
+  } else if (format === 'csv') {
+    // Export fuel entries
+    const rows = [['Type','Date','Vehicle','Category','Amount','Detail1','Detail2','Notes']];
+    fuelEntries.forEach(e=>{
+      const v = vehicles.find(x=>x.id===e.vehicleId);
+      rows.push(['Fuel', e.date, v?.name||'', 'Fuel', e.cost, `${e.litres}L`, e.station||'', e.notes||'']);
+    });
+    expenseEntries.forEach(e=>{
+      const v = vehicles.find(x=>x.id===e.vehicleId);
+      const cat = EXP_CATS.find(c=>c.id===e.category);
+      rows.push(['Expense', e.date, v?.name||'', cat?.label||e.category, e.amount, e.desc||'', e.vendor||'', e.notes||'']);
+    });
+    tripEntries.forEach(e=>{
+      const v = vehicles.find(x=>x.id===e.vehicleId);
+      const route = (e.source||e.destination) ? `${e.source||'?'} to ${e.destination||'?'}` : '';
+      if (e.inProgress) {
+        rows.push(['Trip', e.date, v?.name||'', e.purpose, 'In Progress', `start ${e.startOdo}km`, route, e.notes||'']);
+      } else {
+        rows.push(['Trip', e.date, v?.name||'', e.purpose, e.distance, `${e.startOdo}-${e.endOdo}km`, route, e.notes||'']);
+      }
+    });
+    const csv = rows.map(r=>r.map(x=>`"${String(x).replace(/"/g,'""')}"`).join(',')).join('\n');
+    download('fuellog-all.csv', csv, 'text/csv');
+    toast('CSV exported!');
+  }
+}
+
+// Share backup via native Share sheet — lets user pick Drive, WhatsApp, Email, Files, etc.
+// Tries file-share first, falls back to text-share, falls back to plain download.
+// NOTE: picking "Save to Drive" / "Files" / "Save to device" from the share sheet
+// IS the file being saved — that's correct, expected behavior, not a bug. A true
+// "download" (no share sheet at all) only happens if navigator.share() never opens.
+async function shareBackup() {
+  const data = buildBackupPayload();
+  const json = JSON.stringify(data, null, 2);
+  const dateTag = new Date().toISOString().split('T')[0];
+  const filename = `fuellog-backup-${dateTag}.json`;
+  const summary = `FuelLog backup — ${vehicles.length} vehicles, ${fuelEntries.length} fuel entries, ${tripEntries.length} trips, ${expenseEntries.length} expenses (${dateTag})`;
+
+  const isSecure = window.isSecureContext;
+  const hasShare = typeof navigator.share === 'function';
+
+  if (!isSecure) {
+    toast('Share needs HTTPS — downloading instead');
+    download(filename, json, 'application/json');
+    markBackupDone();
+    return;
+  }
+  if (!hasShare) {
+    toast('Share not supported on this browser — downloading instead');
+    download(filename, json, 'application/json');
+    markBackupDone();
+    return;
+  }
+
+  // ── Attempt 1: native file share (Drive, WhatsApp, Files, etc.) ──
+  try {
+    const file = new File([json], filename, { type: 'application/json' });
+    const canShareFiles = navigator.canShare && navigator.canShare({ files: [file] });
+    if (canShareFiles) {
+      await navigator.share({ files: [file], title: 'FuelLog Backup', text: summary });
+      // If we reach here, the share sheet was opened and completed successfully.
+      toast('Shared!');
+      markBackupDone();
+      return;
+    } else {
+      toast('This browser can\'t attach files to share — downloading instead');
+    }
+  } catch (err) {
+    if (err?.name === 'AbortError') { toast('Share cancelled'); return; }
+    // Show the REAL error so we can see what's actually happening
+    toast(`Share failed: ${err?.name || 'Unknown'} — ${(err?.message||'').slice(0,60)}`, 5000);
+  }
+
+  // ── Fallback: plain download ──
+  download(filename, json, 'application/json');
+  markBackupDone();
+}
+
+function download(name, data, type) {
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([data], {type}));
+  a.download = name; a.click();
+}
+
+function importData(input) {
+  const file = input.files[0]; if (!file) return;
+  const r = new FileReader();
+  r.onload = e => {
+    try {
+      const data = JSON.parse(e.target.result);
+      if (!data.vehicles || !data.fuelEntries) { toast('Invalid backup file'); return; }
+      const expCount = data.expenseEntries?.length || 0;
+      if (!confirm(`Import ${data.vehicles.length} vehicles, ${data.fuelEntries.length} fuel entries, ${data.tripEntries?.length||0} trips, ${expCount} expenses? This will REPLACE all current data.`)) return;
+      vehicles = data.vehicles;
+      fuelEntries = data.fuelEntries;
+      tripEntries = data.tripEntries || [];
+      expenseEntries = data.expenseEntries || [];
+      save();
+      toast('Data imported!');
+      renderDashboard();
+    } catch { toast('Failed to read file'); }
+  };
+  r.readAsText(file);
+  input.value = '';
+}
+
+function clearAllData() {
+  if (!confirm('Delete ALL data permanently? This cannot be undone.')) return;
+  vehicles=[]; fuelEntries=[]; tripEntries=[]; expenseEntries=[];
+  save(); toast('All data cleared'); renderDashboard();
+}
+
+// ─── BACKUP REMINDER SYSTEM ────────────────────────────────────
+const BACKUP_FREQ_OPTIONS = [
+  { key:'3',  label:'3 Days' },
+  { key:'7',  label:'Weekly' },
+  { key:'14', label:'2 Weeks' },
+  { key:'30', label:'Monthly' },
+  { key:'off',label:'Off' },
+];
+
+function getBackupFreqDays() {
+  const saved = DB.get('fl_backup_freq', '7');
+  return saved; // '3' | '7' | '14' | '30' | 'off'
+}
+
+function setBackupFreq(key) {
+  DB.set('fl_backup_freq', key);
+  renderBackupFreqRow();
+  updateBackupBanner();
+  toast(key === 'off' ? 'Backup reminders turned off' : 'Reminder set');
+}
+
+function renderBackupFreqRow() {
+  const el = document.getElementById('backup-freq-row');
+  if (!el) return;
+  const current = getBackupFreqDays();
+  el.innerHTML = BACKUP_FREQ_OPTIONS.map(o =>
+    `<div class="filter-pill ${o.key===current?'active':''}" onclick="setBackupFreq('${o.key}')">${o.label}</div>`
+  ).join('');
+}
+
+function daysSinceLastBackup() {
+  const last = DB.get('fl_last_backup', null);
+  if (!last) return Infinity; // never backed up
+  return Math.floor((Date.now() - new Date(last)) / 86400000);
+}
+
+function updateBackupBanner() {
+  const banner = document.getElementById('backup-banner');
+  if (!banner) return;
+
+  const hasData = vehicles.length > 0 || fuelEntries.length > 0 || tripEntries.length > 0 || expenseEntries.length > 0;
+  const isSeeded = DB.get('fl_seeded', false);
+  const freq = getBackupFreqDays();
+
+  if (!hasData || isSeeded || freq === 'off') { banner.style.display = 'none'; return; }
+
+  const days = daysSinceLastBackup();
+  const threshold = parseInt(freq, 10);
+
+  if (days >= threshold) {
+    const title = document.getElementById('backup-banner-title');
+    const sub = document.getElementById('backup-banner-sub');
+    if (days === Infinity) {
+      title.textContent = "You haven't backed up yet";
+      sub.textContent = 'Your data only lives in this browser. Save a copy somewhere safe.';
+    } else {
+      title.textContent = `Last backup was ${days} days ago`;
+      sub.textContent = 'A quick backup keeps your data safe if this browser is ever cleared.';
+    }
+    banner.style.display = 'flex';
+  } else {
+    banner.style.display = 'none';
+  }
+}
+
+function updateBackupSettingsRow() {
+  const sub = document.getElementById('last-backup-sub');
+  if (!sub) return;
+  const last = DB.get('fl_last_backup', null);
+  if (!last) {
+    sub.textContent = 'Never backed up';
+    sub.style.color = 'var(--amber)';
+    updateShareSupportRow();
+    return;
+  }
+  const days = daysSinceLastBackup();
+  const dateStr = fmtDate(last.split('T')[0]);
+  sub.textContent = days === 0 ? `Today (${dateStr})` : days === 1 ? `Yesterday (${dateStr})` : `${days} days ago (${dateStr})`;
+  sub.style.color = days >= parseInt(getBackupFreqDays()||'999',10) ? 'var(--amber)' : 'var(--green)';
+  updateShareSupportRow();
+}
+
+// Tells the user up front whether file-sharing will actually work on this device,
+// instead of silently falling back to download with no explanation.
+function updateShareSupportRow() {
+  const el = document.getElementById('share-support-sub');
+  if (!el) return;
+
+  const isSecure = window.isSecureContext;
+  const hasShare = typeof navigator.share === 'function';
+  let fileShareWorks = false;
+  try {
+    if (hasShare && navigator.canShare) {
+      const probe = new File(['x'], 'probe.json', { type: 'application/json' });
+      fileShareWorks = navigator.canShare({ files: [probe] });
+    }
+  } catch { /* ignore */ }
+
+  if (fileShareWorks) {
+    el.textContent = 'Send to Drive, WhatsApp, Email, Files…';
+    el.style.color = '';
+  } else if (!isSecure) {
+    el.textContent = 'Share needs HTTPS — will download instead';
+    el.style.color = 'var(--text3)';
+  } else if (!hasShare) {
+    el.textContent = 'Share not supported here — will download instead';
+    el.style.color = 'var(--text3)';
+  } else {
+    el.textContent = 'File share unavailable here — will download instead';
+    el.style.color = 'var(--text3)';
+  }
+}
+
+// ─── TOAST ────────────────────────────────────────────────────
+function toast(msg, duration=2500) {
+  const t = document.getElementById('toast');
+  t.textContent = msg; t.classList.add('show');
+  clearTimeout(t._hideTimer);
+  t._hideTimer = setTimeout(()=>t.classList.remove('show'), duration);
+}
+
+// ─── SEED DATA (first launch) ─────────────────────────────────
+function seedData() {
+  // Skip if already seeded (flag set)
+  if (DB.get('fl_seeded', false)) return;
+  // Skip if user already has ANY real data — never overwrite existing data
+  if (vehicles.length > 0 || fuelEntries.length > 0 || tripEntries.length > 0 || expenseEntries.length > 0) return;
+  const vid = uid();
+  vehicles.push({ id:vid, name:'Honda City', type:'car', fuel:'petrol', reg:'MH 02 CD 5678', odo:45230, purchaseDate:'2021-03-15', createdAt:new Date().toISOString() });
+  const vid2 = uid();
+  vehicles.push({ id:vid2, name:'Activa 125', type:'scooter', fuel:'petrol', reg:'MH 02 EF 9012', odo:18450, purchaseDate:'2022-07-01', createdAt:new Date().toISOString() });
+
+  const now = new Date();
+  const seedFuelIds = [], seedTripIds = [], seedExpIds = [];
+
+  // Last 6 months of fuel
+  for (let m=5; m>=0; m--) {
+    for (let f=0; f<3; f++) {
+      const d = new Date(now); d.setMonth(d.getMonth()-m); d.setDate(f*9+3);
+      const litres = 25 + Math.random()*15;
+      const pricePerL = 94 + Math.random()*4;
+      const cost = Math.round(litres * pricePerL);
+      const id = uid();
+      fuelEntries.push({ id, vehicleId:vid, date:d.toISOString().split('T')[0], odo:44000+m*400+f*120, litres:parseFloat(litres.toFixed(2)), cost, pricePerL:parseFloat((cost/litres).toFixed(2)), station:['HP','BPCL','Indian Oil'][f%3], fullTank:true, notes:'', createdAt:d.toISOString() });
+      seedFuelIds.push(id);
+    }
+    const d2 = new Date(now); d2.setMonth(d2.getMonth()-m); d2.setDate(5);
+    const litres2 = 2 + Math.random()*3;
+    const cost2 = Math.round(litres2 * 95);
+    const id2 = uid();
+    fuelEntries.push({ id:id2, vehicleId:vid2, date:d2.toISOString().split('T')[0], odo:17800+m*110, litres:parseFloat(litres2.toFixed(2)), cost:cost2, pricePerL:parseFloat((cost2/litres2).toFixed(2)), station:'HP', fullTank:true, notes:'', createdAt:d2.toISOString() });
+    seedFuelIds.push(id2);
+  }
+
+  // Trips
+  for (let w=0; w<12; w++) {
+    const d = new Date(now); d.setDate(d.getDate()-w*7);
+    const id = uid();
+    tripEntries.push({ id, vehicleId:vid, date:d.toISOString().split('T')[0], startOdo:44000+w*120, endOdo:44000+w*120+45, distance:45, purpose:['personal','office','office','business'][w%4], notes:'', createdAt:d.toISOString() });
+    seedTripIds.push(id);
+  }
+
+  // Seed expenses
+  const seedExpenses = [
+    { vehicleId:vid,  cat:'service',   amount:3500,  desc:'Full Service',      vendor:'Maruti Authorised',  daysAgo:15 },
+    { vehicleId:vid,  cat:'insurance', amount:12800, desc:'Annual Premium',    vendor:'HDFC Ergo',          daysAgo:45 },
+    { vehicleId:vid,  cat:'tire',      amount:9600,  desc:'2 Tyre Replaced',   vendor:'MRF Tyres',          daysAgo:60 },
+    { vehicleId:vid,  cat:'repair',    amount:1200,  desc:'AC Gas Refill',     vendor:'Cool Cars',          daysAgo:20 },
+    { vehicleId:vid,  cat:'toll',      amount:145,   desc:'Mumbai-Pune',       vendor:'Khopoli Toll',       daysAgo:3  },
+    { vehicleId:vid,  cat:'toll',      amount:145,   desc:'Mumbai-Pune',       vendor:'Khopoli Toll',       daysAgo:10 },
+    { vehicleId:vid,  cat:'parking',   amount:60,    desc:'Mall Parking',      vendor:'Phoenix Palladium',  daysAgo:5  },
+    { vehicleId:vid,  cat:'parking',   amount:40,    desc:'Office Parking',    vendor:'',                   daysAgo:2  },
+    { vehicleId:vid,  cat:'accessory', amount:2200,  desc:'Dashcam',           vendor:'Cartronics',         daysAgo:30 },
+    { vehicleId:vid,  cat:'repair',    amount:800,   desc:'Battery Terminal',  vendor:'Local Garage',       daysAgo:90 },
+    { vehicleId:vid2, cat:'service',   amount:850,   desc:'Engine Oil Change', vendor:'Honda Auth Centre',  daysAgo:25 },
+    { vehicleId:vid2, cat:'insurance', amount:4200,  desc:'Annual Premium',    vendor:'Bajaj Allianz',      daysAgo:80 },
+    { vehicleId:vid2, cat:'tire',      amount:1800,  desc:'Front Tyre',        vendor:'CEAT',               daysAgo:50 },
+    { vehicleId:vid2, cat:'repair',    amount:350,   desc:'Brake Shoe',        vendor:'Local Mechanic',     daysAgo:35 },
+    { vehicleId:vid2, cat:'accessory', amount:650,   desc:'Phone Holder',      vendor:'Amazon',             daysAgo:12 },
+  ];
+  seedExpenses.forEach(e=>{
+    const d = new Date(now); d.setDate(d.getDate() - e.daysAgo);
+    const id = uid();
+    expenseEntries.push({ id, vehicleId:e.vehicleId, category:e.cat, date:d.toISOString().split('T')[0], amount:e.amount, desc:e.desc, vendor:e.vendor||'', notes:'', createdAt:d.toISOString() });
+    seedExpIds.push(id);
+  });
+
+  dashVehicleId = vid;
+  save();
+  DB.set('fl_seeded', true);
+  // Store all seeded IDs so we can surgically remove them later
+  DB.set('fl_seed_ids', { vehicles:[vid,vid2], fuel:seedFuelIds, trips:seedTripIds, expenses:seedExpIds });
+
+}
+
+// ─── THEME ────────────────────────────────────────────────────
+function applyTheme(light) {
+  document.documentElement.classList.toggle('light', light);
+
+  // Update theme-color meta for browser chrome
+  document.querySelector('meta[name="theme-color"]').content = light ? '#F0F4F8' : '#0F1729';
+
+  // Update settings toggle
+  const track = document.getElementById('theme-toggle');
+  const sub   = document.getElementById('theme-sub');
+  if (track) track.classList.toggle('on', light);
+  if (sub)   sub.textContent = light ? 'Currently using light mode' : 'Currently using dark mode';
+
+  // Update dashboard icon: sun in dark mode (tap to go light), moon in light mode (tap to go dark)
+  const icon = document.getElementById('dash-theme-icon');
+  if (icon) {
+    icon.innerHTML = light
+      ? '<path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"/>'          // moon = go dark
+      : '<circle cx="12" cy="12" r="5"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/>'; // sun = go light
+  }
+}
+
+function toggleTheme() {
+  const isLight = document.documentElement.classList.contains('light');
+  const next = !isLight;
+  DB.set('fl_theme', next ? 'light' : 'dark');
+  applyTheme(next);
+}
+
+function initTheme() {
+  const saved = DB.get('fl_theme', null);
+  // If no saved preference, follow system
+  const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+  const light = saved === 'light' || (saved === null && !prefersDark);
+  applyTheme(light);
+}
+
+// ─── PULL TO REFRESH ──────────────────────────────────────────
+(function() {
+  const THRESHOLD = 80;   // px to pull before triggering refresh
+  const MAX_PULL  = 110;  // rubber-band cap
+  // Dead zone: PTR only activates after this many px — separates it from swipe-dismiss
+  const PTR_DEAD_ZONE = 28;
+  let startY = 0, currentY = 0, pulling = false, refreshing = false, ptrBlocked = false;
+
+  const ind = document.getElementById('ptr-indicator');
+  const arrow = document.getElementById('ptr-arrow');
+
+  function getActivePage() {
+    return document.querySelector('.page.active');
+  }
+
+  function isAtTop(el) {
+    return el ? el.scrollTop <= 0 : true;
+  }
+
+  function isModalOpen() {
+    return !!document.querySelector('.modal-overlay.open');
+  }
+
+  function setIndicator(pullPx) {
+    const capped = Math.min(pullPx, MAX_PULL);
+    const ratio  = Math.min(capped / THRESHOLD, 1);
+    const ty = -64 + (ratio * 80);
+    ind.style.transform = `translateX(-50%) translateY(${ty}px)`;
+    arrow.style.transform = `rotate(${ratio * 180}deg)`;
+    ind.style.opacity = 0.4 + ratio * 0.6;
+  }
+
+  document.addEventListener('touchstart', e => {
+    ptrBlocked = false;
+    if (refreshing || isModalOpen() || window._modalSwiping) { ptrBlocked = true; return; }
+    const page = getActivePage();
+    if (!page || !isAtTop(page)) { ptrBlocked = true; return; }
+    startY = e.touches[0].clientY;
+    pulling = false;
+  }, { passive: true });
+
+  document.addEventListener('touchmove', e => {
+    if (refreshing || ptrBlocked || window._modalSwiping) return;
+    const page = getActivePage();
+    if (!page || !isAtTop(page)) return;
+    currentY = e.touches[0].clientY;
+    const delta = currentY - startY;
+    // Dead zone: ignore until we've moved past PTR_DEAD_ZONE (lets swipe-dismiss complete first)
+    if (delta < PTR_DEAD_ZONE) return;
+    pulling = true;
+    ind.classList.add('pulling');
+    ind.classList.remove('releasing', 'refreshing');
+    setIndicator(delta - PTR_DEAD_ZONE);
+  }, { passive: true });
+
+  document.addEventListener('touchend', () => {
+    if (!pulling) return;
+    const delta = currentY - startY;
+    pulling = false;
+    ind.classList.remove('pulling');
+    ind.classList.add('releasing');
+
+    if (delta >= THRESHOLD) {
+      // Trigger refresh
+      refreshing = true;
+      ind.classList.add('refreshing');
+      setTimeout(() => {
+        // Re-render the current page
+        const p = currentPage;
+        if (p === 'dashboard') renderDashboard();
+        else if (p === 'fuel')     renderFuelList();
+        else if (p === 'trips')    renderTripList();
+        else if (p === 'expenses') renderExpenseList();
+        else if (p === 'vehicles') renderVehiclesList();
+        // Snap back
+        setTimeout(() => {
+          ind.classList.remove('refreshing');
+          ind.style.transform = '';
+          ind.style.opacity = '';
+          refreshing = false;
+        }, 400);
+      }, 600);
+    } else {
+      // Snap back without refreshing
+      ind.style.transform = '';
+      ind.style.opacity = '';
+    }
+  });
+})();
+
+// ─── BACK GESTURE / BUTTON ────────────────────────────────────
+(function() {
+  // Page history stack for back navigation
+  const pageHistory = ['dashboard'];
+
+  // Patch showPage to track history
+  const _origShowPage = showPage;
+  window.showPage = function(id) {
+    _origShowPage(id);
+    // Don't push duplicates
+    if (pageHistory[pageHistory.length - 1] !== id) {
+      pageHistory.push(id);
+    }
+  };
+
+  function handleBack() {
+    // 1. Close any open modal first
+    const openModal = document.querySelector('.modal-overlay.open');
+    if (openModal) {
+      openModal.classList.remove('open');
+      return true;
+    }
+    // 2. Exit select mode
+    if (selectMode) {
+      exitSelectMode();
+      return true;
+    }
+    // 3. Navigate back in page history
+    if (pageHistory.length > 1) {
+      pageHistory.pop(); // remove current
+      const prev = pageHistory[pageHistory.length - 1];
+      _origShowPage(prev); // use original to avoid pushing to history again
+      return true;
+    }
+    return false; // nothing to go back to
+  }
+
+  // Android hardware back button (popstate trick)
+  // Push a dummy state so back button fires popstate instead of leaving
+  history.pushState({ fuellog: true }, '');
+  window.addEventListener('popstate', () => {
+    const handled = handleBack();
+    if (handled) {
+      // Re-push so next back press also fires here
+      history.pushState({ fuellog: true }, '');
+    }
+    // If not handled, browser naturally goes back (exits PWA)
+  });
+
+  // Swipe from left edge (right-swipe back gesture for Android/iOS)
+  let edgeStartX = 0, edgeStartY = 0, edgeSwiping = false;
+  const EDGE_ZONE = 24; // px from left edge to start gesture
+  const SWIPE_MIN = 80; // minimum horizontal travel to trigger
+
+  document.addEventListener('touchstart', e => {
+    edgeStartX = e.touches[0].clientX;
+    edgeStartY = e.touches[0].clientY;
+    edgeSwiping = edgeStartX <= EDGE_ZONE;
+  }, { passive: true });
+
+  document.addEventListener('touchend', e => {
+    if (!edgeSwiping) return;
+    const dx = e.changedTouches[0].clientX - edgeStartX;
+    const dy = Math.abs(e.changedTouches[0].clientY - edgeStartY);
+    if (dx >= SWIPE_MIN && dy < 80) {
+      handleBack();
+    }
+    edgeSwiping = false;
+  }, { passive: true });
+})();
+
+// ─── INIT ─────────────────────────────────────────────────────
+initTheme();
+seedData();
+if (vehicles.length) dashVehicleId = vehicles[0].id;
+renderDashboard();
+
+// Follow system theme if user hasn't set a preference
+window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', e => {
+  if (!DB.get('fl_theme', null)) applyTheme(!e.matches);
+});
+
+// ─── SERVICE WORKER + UPDATE HANDLING ────────────────────────
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', async () => {
+    try {
+      const reg = await navigator.serviceWorker.register('sw.js');
+
+      // If a new SW is waiting right after registration, prompt immediately
+      if (reg.waiting) showUpdateBar();
+
+      // New SW installed while page is open
+      reg.addEventListener('updatefound', () => {
+        const newSW = reg.installing;
+        newSW.addEventListener('statechange', () => {
+          if (newSW.state === 'installed' && navigator.serviceWorker.controller) {
+            showUpdateBar();
+          }
+        });
+      });
+    } catch(e) {
+      console.log('SW registration failed:', e);
+    }
+  });
+
+  // SW sends SW_UPDATED after it activates and claims all clients
+  navigator.serviceWorker.addEventListener('message', e => {
+    if (e.data?.type === 'SW_UPDATED') showUpdateBar();
+  });
+}
+
+function showUpdateBar() {
+  document.getElementById('update-bar').style.display = 'flex';
+}
+
+function applyUpdate() {
+  // Tell the waiting SW to skip waiting, then reload
+  navigator.serviceWorker.getRegistration().then(reg => {
+    if (reg?.waiting) {
+      reg.waiting.postMessage({ type: 'SKIP_WAITING' });
+    }
+  });
+  // Reload after a short delay to let the SW activate
+  setTimeout(() => window.location.reload(), 300);
+}
+</script>
+</body>
+</html>
