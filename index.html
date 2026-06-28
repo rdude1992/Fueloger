@@ -1653,35 +1653,114 @@ function preprocessImageWithOpenCV(dataUrl) {
     img.onload = () => {
       try {
         const cv = window.cv;
-        const canvas = document.createElement('canvas');
-        // Cap max dimension for performance on large phone photos
-        const maxDim = 1600;
+
+        // ── Step 0: draw the original photo onto a working canvas ──
+        // Cap input size for performance, but generously — we need enough
+        // resolution to detect the receipt boundary accurately.
+        const maxInputDim = 2000;
         let { width, height } = img;
-        if (width > maxDim || height > maxDim) {
-          const scale = maxDim / Math.max(width, height);
+        if (width > maxInputDim || height > maxInputDim) {
+          const scale = maxInputDim / Math.max(width, height);
           width = Math.round(width * scale);
           height = Math.round(height * scale);
         }
-        canvas.width = width; canvas.height = height;
-        const ctx = canvas.getContext('2d');
-        ctx.drawImage(img, 0, 0, width, height);
+        const srcCanvas = document.createElement('canvas');
+        srcCanvas.width = width; srcCanvas.height = height;
+        srcCanvas.getContext('2d').drawImage(img, 0, 0, width, height);
 
-        const src = cv.imread(canvas);
-        const gray = new cv.Mat();
+        let src = cv.imread(srcCanvas);
+        let gray = new cv.Mat();
         cv.cvtColor(src, gray, cv.COLOR_RGBA2GRAY);
 
-        // Denoise lightly
+        // ── Step 1: find the receipt's bounding region ──
+        // Receipts are usually a bright rectangle against a darker background
+        // (table, fabric, hand). Threshold + find the largest contour to crop
+        // tightly around just the receipt, discarding wasted background pixels.
+        let cropped = null;
+        try {
+          const blurred = new cv.Mat();
+          cv.GaussianBlur(gray, blurred, new cv.Size(5, 5), 0);
+          const edges = new cv.Mat();
+          cv.threshold(blurred, edges, 0, 255, cv.THRESH_BINARY + cv.THRESH_OTSU);
+
+          const contours = new cv.MatVector();
+          const hierarchy = new cv.Mat();
+          cv.findContours(edges, contours, hierarchy, cv.RETR_EXTERNAL, cv.CHAIN_APPROX_SIMPLE);
+
+          let bestRect = null, bestArea = 0;
+          const imgArea = width * height;
+          for (let i = 0; i < contours.size(); i++) {
+            const cnt = contours.get(i);
+            const rect = cv.boundingRect(cnt);
+            const area = rect.width * rect.height;
+            // Receipt should be a meaningfully large region, but not the entire frame
+            // (entire frame = background got picked up as "bright" too — skip it)
+            if (area > bestArea && area > imgArea * 0.04 && area < imgArea * 0.92) {
+              bestArea = area; bestRect = rect;
+            }
+            cnt.delete();
+          }
+
+          if (bestRect) {
+            // Add a small margin around the detected region so we don't clip text at edges
+            const margin = Math.round(Math.max(bestRect.width, bestRect.height) * 0.03);
+            const x = Math.max(0, bestRect.x - margin);
+            const y = Math.max(0, bestRect.y - margin);
+            const w = Math.min(width - x, bestRect.width + margin * 2);
+            const h = Math.min(height - y, bestRect.height + margin * 2);
+            cropped = gray.roi(new cv.Rect(x, y, w, h));
+          }
+
+          blurred.delete(); edges.delete(); contours.delete(); hierarchy.delete();
+        } catch (cropErr) {
+          console.warn('[FuelLog OCR] Auto-crop failed, using full frame:', cropErr);
+        }
+
+        const working = cropped || gray;
+
+        // ── Step 2: upscale if the cropped receipt is small ──
+        // OCR accuracy drops sharply when character height is under ~20px.
+        // If the cropped region is small, scale it UP rather than leaving it
+        // tiny — this is the main fix for "receipt is small in frame" photos.
+        const targetMinDim = 1000;
+        const curMinDim = Math.min(working.cols, working.rows);
+        let resized = working;
+        let didResize = false;
+        if (curMinDim > 0 && curMinDim < targetMinDim) {
+          const scaleFactor = Math.min(3, targetMinDim / curMinDim); // cap at 3x to avoid mush
+          resized = new cv.Mat();
+          cv.resize(working, resized, new cv.Size(0, 0), scaleFactor, scaleFactor, cv.INTER_CUBIC);
+          didResize = true;
+        }
+
+        // ── Step 3: denoise + adaptive threshold, block size scaled to image size ──
         const denoised = new cv.Mat();
-        cv.GaussianBlur(gray, denoised, new cv.Size(3, 3), 0);
+        cv.bilateralFilter(resized, denoised, 5, 50, 50); // edge-preserving smoothing, better than Gaussian for text
 
-        // Adaptive threshold — handles uneven lighting on receipts well
         const thresh = new cv.Mat();
-        cv.adaptiveThreshold(denoised, thresh, 255, cv.ADAPTIVE_THRESH_GAUSSIAN_C, cv.THRESH_BINARY, 31, 15);
+        // Block size must be odd; scale it relative to image width so small vs large
+        // crops both get appropriately-sized local thresholding windows.
+        let blockSize = Math.round(resized.cols / 25);
+        if (blockSize % 2 === 0) blockSize += 1;
+        if (blockSize < 11) blockSize = 11;
+        cv.adaptiveThreshold(denoised, thresh, 255, cv.ADAPTIVE_THRESH_GAUSSIAN_C, cv.THRESH_BINARY, blockSize, 10);
 
-        cv.imshow(canvas, thresh);
-        const outUrl = canvas.toDataURL('image/png');
+        // ── Output ──
+        const outCanvas = document.createElement('canvas');
+        outCanvas.width = thresh.cols; outCanvas.height = thresh.rows;
+        cv.imshow(outCanvas, thresh);
+        const outUrl = outCanvas.toDataURL('image/png');
 
-        src.delete(); gray.delete(); denoised.delete(); thresh.delete();
+        // Clean up every Mat we explicitly allocated. `working` is just a
+        // reference to either `gray` or `cropped` (never a separate alloc),
+        // so it must NOT be deleted on its own — only its underlying Mat once.
+        thresh.delete();
+        denoised.delete();
+        if (didResize) resized.delete(); // only allocated when we actually upscaled
+        if (cropped) cropped.delete();   // roi() view — safe to delete independently
+        gray.delete();
+        src.delete();
+
         resolve(outUrl);
       } catch (e) {
         console.warn('[FuelLog OCR] OpenCV preprocessing failed, using original image:', e);
@@ -1744,11 +1823,15 @@ function extractFuelFieldsFromText(text) {
   }
 
   // ── LITRES / VOLUME ─────────────────────────────────────────────
+  // OCR frequently misreads the "L" unit suffix as t, 1, i, or drops it
+  // entirely (e.g. "15.93t", "15.93L", "15.931"). We match the number right
+  // after "volume/vol/qty" regardless of what (if anything) follows it,
+  // since the label itself is the strongest signal, not the unit character.
   const litrePatterns = [
-    { re: /(?:volume|vol)\s*[:\-]?\s*(\d{1,3}\.\d{1,3})\s*(?:l|ltr|litre|liter)/i, conf: 'high' },
+    { re: /(?:volume|vol)\s*[:\-]?\s*(\d{1,3}\.\d{1,3})/i, conf: 'high' },
     { re: /(?:qty|quantity)\s*[:\-]?\s*(\d{1,3}\.\d{1,3})/i, conf: 'high' },
     { re: /(\d{1,3}\.\d{1,3})\s*(?:ltr|litre|liter)s?\b/i, conf: 'high' },
-    { re: /(\d{1,3}\.\d{1,3})\s*L\b/, conf: 'medium' },
+    { re: /(\d{1,3}\.\d{1,3})\s*[lLtT1iI]\b/, conf: 'medium' }, // tolerate misread unit char
   ];
   for (const p of litrePatterns) {
     const m = joined.match(p.re);
@@ -1759,19 +1842,18 @@ function extractFuelFieldsFromText(text) {
   }
 
   // ── PRICE PER LITRE ──────────────────────────────────────────────
-  // Receipts vary: "RATE : 103.54 INR/Ltr", "RATE © 103.54", "Price/L 94.50", "@ 94.50/L"
-  // Key fix: don't require "/L" to appear directly after "rate" — it usually
-  // appears AFTER the number instead (e.g. "103.54 INR/Ltr"), and OCR often
-  // misreads the colon after RATE as ©, :, =, or similar junk characters.
+  // Receipts vary: "RATE : 103.54 INR/Ltr", "RATE © 103.54", "Rate :Rs.97.30",
+  // "Price/L 94.50", "@ 94.50/L". The "Rs." / "₹" / "INR" currency marker can
+  // appear either immediately before OR after the number, or not at all.
   const ppl_patterns = [
-    // "RATE <junk> 103.54 <unit>/L" — unit can be INR, Rs, ₹ etc, before /Ltr or /L
-    { re: /rate\s*[^a-zA-Z0-9]{0,3}\s*(\d{2,3}\.\d{1,2})\s*(?:inr|rs\.?|₹)?\s*\/\s*l(?:tr|itre)?/i, conf: 'high' },
-    // "RATE: 103.54" with no unit suffix at all
-    { re: /rate\s*[:\-=©]?\s*(\d{2,3}\.\d{1,2})\b/i, conf: 'high' },
+    // "RATE <junk> 103.54 <unit>/L" — unit appears AFTER the number
+    { re: /rate\s*[^a-zA-Z0-9]{0,4}\s*(?:rs\.?|₹|inr)?\s*(\d{2,3}\.\d{1,2})\s*(?:inr|rs\.?|₹)?\s*\/\s*l(?:tr|itre)?/i, conf: 'high' },
+    // "Rate :Rs.97.30" or "RATE: 103.54" — currency symbol/word optional, right before the number
+    { re: /rate\s*[:\-=©]?\s*(?:rs\.?|₹|inr)?\s*(\d{2,3}\.\d{1,2})\b/i, conf: 'high' },
     // "Price/L 94.50" or "Price per litre: 94.50"
-    { re: /price\s*(?:\/|per)?\s*l(?:tr|itre)?\s*[:\-]?\s*₹?\s*(\d{2,3}\.\d{1,2})/i, conf: 'high' },
-    // "@ 94.50/L" or "@94.50" — only trust this if immediately followed by a litre unit
-    { re: /@\s*₹?\s*(\d{2,3}\.\d{1,2})\s*\/?\s*l(?:tr|itre)?\b/i, conf: 'medium' },
+    { re: /price\s*(?:\/|per)?\s*l(?:tr|itre)?\s*[:\-]?\s*(?:rs\.?|₹)?\s*(\d{2,3}\.\d{1,2})/i, conf: 'high' },
+    // "@ 94.50/L" — only trust this if immediately followed by a litre unit
+    { re: /@\s*(?:rs\.?|₹)?\s*(\d{2,3}\.\d{1,2})\s*\/?\s*l(?:tr|itre)?\b/i, conf: 'medium' },
   ];
   for (const p of ppl_patterns) {
     const m = joined.match(p.re);
@@ -1782,9 +1864,15 @@ function extractFuelFieldsFromText(text) {
     }
   }
 
-  // ── TOTAL COST / AMOUNT ──────────────────────────────────────────
+  // ── TOTAL COST / AMOUNT / SALE ───────────────────────────────────
+  // Different fuel brands use different labels for the final payable amount:
+  // "AMOUNT:", "Sale:" (IndianOil), "Total:", "Net Amount:", "Amount Payable:".
+  // IMPORTANT: this list is checked in priority order and we deliberately
+  // search for these BEFORE any generic Rs.-prefixed number, so a currency
+  // value attached to "Rate" earlier in the text never gets mistaken for the
+  // total — that exact bug previously caused Rate (₹97.30) to be read as Cost.
   const costPatterns = [
-    // Plain "AMOUNT: 1000.00 INR" — the most common label on Indian fuel receipts
+    { re: /\bsale\s*[:\-]?\s*(?:rs\.?|₹|inr)?\s*(\d{2,6}(?:\.\d{2})?)\b/i, conf: 'high' },
     { re: /\bamount\s*[:\-]?\s*(?:rs\.?|₹|inr)?\s*(\d{2,6}(?:\.\d{2})?)\b/i, conf: 'high' },
     { re: /(?:total|grand\s*total|net\s*amount|amount\s*payable)\s*[:\-]?\s*(?:rs\.?|₹|inr)?\s*(\d{2,6}(?:\.\d{2})?)/i, conf: 'high' },
     { re: /(?:rs\.?|₹|inr)\s*(\d{2,6}\.\d{2})/i, conf: 'medium' },
@@ -1840,20 +1928,19 @@ function extractFuelFieldsFromText(text) {
     }
   }
 
-  // ── STATION NAME ── look for known Indian fuel brands in the first few lines
-  const knownBrands = ['HP', 'HPCL', 'Hindustan Petroleum', 'Indian Oil', 'IOCL', 'BPCL', 'Bharat Petroleum',
-                        'Shell', 'Reliance', 'Essar', 'Nayara', 'Jio-bp', 'Total'];
-  for (const line of lines.slice(0, 6)) {
-    const hit = knownBrands.find(b => line.toLowerCase().includes(b.toLowerCase()));
-    if (hit) { result.station = hit; result.stationConf = 'high'; break; }
+  // ── STATION NAME ── look for known Indian fuel brands anywhere in the text
+  // (not just the first few lines — OCR sometimes drops/reorders early lines,
+  // and the brand can appear lower on the slip too, e.g. in a logo caption).
+  const knownBrands = ['HPCL', 'Hindustan Petroleum', 'HP', 'Indian Oil', 'IndianOil', 'IOCL',
+                        'BPCL', 'Bharat Petroleum', 'Shell', 'Reliance', 'Essar', 'Nayara', 'Jio-bp', 'Total'];
+  for (const line of lines.slice(0, 10)) {
+    const hit = knownBrands.find(b => line.toLowerCase().replace(/\s+/g,'') .includes(b.toLowerCase().replace(/\s+/g,'')));
+    if (hit) { result.station = hit.replace(/IndianOil/i, 'Indian Oil'); result.stationConf = 'high'; break; }
   }
-  if (!result.station && lines.length) {
-    // Fallback: first non-empty line is often the station/business name on a receipt
-    const candidate = lines[0].replace(/[^a-zA-Z0-9 .&\-]/g, '').trim();
-    if (candidate.length > 2 && candidate.length < 40) {
-      result.station = candidate; result.stationConf = 'low';
-    }
-  }
+  // No reliable low-confidence fallback here on purpose: guessing "first line of
+  // text" produces convincing-looking garbage (e.g. misread fragments) far more
+  // often than it produces a real business name, which is worse than just
+  // honestly reporting "not found" and letting the user type it in manually.
 
   return result;
 }
