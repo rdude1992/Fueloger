@@ -328,6 +328,23 @@
   .scan-spinner { width: 16px; height: 16px; border: 2px solid rgba(245,158,11,.3); border-top-color: var(--amber); border-radius: 50%; animation: spin .8s linear infinite; flex-shrink: 0; }
   @keyframes spin { to { transform: rotate(360deg); } }
 
+  /* LIVE PROCESSING PIPELINE VIEW */
+  .scan-pipeline-main { position: relative; border-radius: 14px; overflow: hidden; margin-bottom: 12px; background: #0a0a0a; min-height: 180px; display: flex; align-items: center; justify-content: center; }
+  .scan-pipeline-main img { width: 100%; max-height: 320px; object-fit: contain; display: block; transition: opacity .25s ease; }
+  .scan-pipeline-badge { position: absolute; top: 10px; left: 10px; background: rgba(0,0,0,.65); color: var(--amber); font-size: 11px; font-weight: 700; padding: 4px 10px; border-radius: 8px; backdrop-filter: blur(4px); display: flex; align-items: center; gap: 6px; }
+  .scan-pipeline-badge .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--amber); animation: pulseDotScan 1s ease-in-out infinite; }
+  @keyframes pulseDotScan { 0%,100% { opacity: 1; } 50% { opacity: .3; } }
+
+  .scan-steps-row { display: flex; gap: 6px; margin-bottom: 14px; }
+  .scan-step-chip { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 8px 4px; border-radius: 10px; background: var(--bg3); border: 1.5px solid var(--border); transition: all .25s; }
+  .scan-step-chip.active { border-color: var(--amber); background: rgba(245,158,11,.1); }
+  .scan-step-chip.done { border-color: var(--green); background: rgba(16,185,129,.08); }
+  .scan-step-icon { font-size: 16px; line-height: 1; }
+  .scan-step-label { font-size: 9px; font-weight: 700; color: var(--text3); text-transform: uppercase; letter-spacing: .3px; text-align: center; }
+  .scan-step-chip.active .scan-step-label { color: var(--amber); }
+  .scan-step-chip.done .scan-step-label { color: var(--green); }
+  .scan-step-check { font-size: 11px; }
+
   .scan-result-grid { display: flex; flex-direction: column; gap: 8px; margin-bottom: 14px; }
   .scan-result-row { display: flex; align-items: center; justify-content: space-between; background: var(--bg3); border-radius: 10px; padding: 10px 12px; gap: 10px; }
   .scan-result-row.high { border-left: 3px solid var(--green); }
@@ -947,11 +964,15 @@
         <div class="scan-lib-status" id="scan-lib-status"></div>
       </div>
 
-      <!-- Stage 2: processing -->
+      <!-- Stage 2: processing — live pipeline view, like a document scanner app -->
       <div class="scan-stage" id="scan-stage-processing">
-        <div class="scan-preview-wrap">
-          <img class="scan-preview-img" id="scan-preview-img" alt="Receipt preview">
+        <div class="scan-pipeline-main">
+          <div class="scan-pipeline-badge" id="scan-pipeline-badge">
+            <div class="dot"></div><span id="scan-pipeline-badge-text">Original</span>
+          </div>
+          <img id="scan-pipeline-img" alt="Processing preview">
         </div>
+        <div class="scan-steps-row" id="scan-steps-row"></div>
         <div class="scan-progress">
           <div class="scan-progress-label"><div class="scan-spinner"></div><span id="scan-progress-text">Loading OCR engine…</span></div>
           <div class="scan-progress-bar-track"><div class="scan-progress-bar-fill" id="scan-progress-fill"></div></div>
@@ -1596,20 +1617,71 @@ function setScanProgress(pct, label) {
   if (label) document.getElementById('scan-progress-text').textContent = label;
 }
 
+// ── Live pipeline visualization ──
+// Mirrors the step-by-step preview you see in document-scanner apps: the
+// user watches their actual photo get cropped, upscaled, and thresholded in
+// real time, with each step's intermediate image displayed. This makes it
+// obvious WHY an OCR read might come out wrong (e.g. a blurry or low-contrast
+// threshold step) instead of just seeing a wrong number appear with no
+// explanation — and gives the user a chance to rescan with better lighting
+// or framing before even reaching the results screen.
+const SCAN_PIPELINE_STEPS = [
+  { key: 'original',  icon: '📷', label: 'Original' },
+  { key: 'cropped',   icon: '✂️', label: 'Crop' },
+  { key: 'upscaled',  icon: '🔍', label: 'Upscale' },
+  { key: 'threshold', icon: '◐',  label: 'Enhance' },
+  { key: 'ocr',       icon: '🔤', label: 'Read Text' },
+];
+
+function renderScanStepsRow(activeKey) {
+  const row = document.getElementById('scan-steps-row');
+  if (!row) return;
+  let passedActive = false;
+  row.innerHTML = SCAN_PIPELINE_STEPS.map(s => {
+    const isActive = s.key === activeKey;
+    const isDone = !isActive && !passedActive;
+    if (isActive) passedActive = true;
+    const cls = isActive ? 'active' : (isDone ? 'done' : '');
+    return `<div class="scan-step-chip ${cls}">
+      <div class="scan-step-icon">${isDone && !isActive ? '<span class="scan-step-check">✓</span>' : s.icon}</div>
+      <div class="scan-step-label">${s.label}</div>
+    </div>`;
+  }).join('');
+}
+
+function updateScanPipelinePreview(dataUrl, stepKey, badgeText) {
+  const img = document.getElementById('scan-pipeline-img');
+  const badge = document.getElementById('scan-pipeline-badge-text');
+  if (img) {
+    img.style.opacity = '0';
+    setTimeout(() => {
+      img.src = dataUrl;
+      img.style.opacity = '1';
+    }, 120);
+  }
+  if (badge) badge.textContent = badgeText;
+  renderScanStepsRow(stepKey);
+}
+
 async function runOCRPipeline(dataUrl) {
   // Move to processing stage
   document.querySelectorAll('.scan-stage').forEach(s => s.classList.remove('active'));
   document.getElementById('scan-stage-processing').classList.add('active');
-  document.getElementById('scan-preview-img').src = dataUrl;
+  updateScanPipelinePreview(dataUrl, 'original', 'Original photo');
   setScanProgress(0, 'Loading OCR engine…');
 
   try {
     await ensureOCRLibsLoaded((msg) => setScanProgress(5, msg));
-    setScanProgress(15, 'Enhancing image…');
+    setScanProgress(15, 'Detecting receipt edges…');
 
-    // ── Step 1: OpenCV preprocessing ──
-    const processedDataUrl = await preprocessImageWithOpenCV(dataUrl);
+    // ── Step 1: OpenCV preprocessing — now emits live intermediate previews ──
+    const processedDataUrl = await preprocessImageWithOpenCV(dataUrl, (stepDataUrl, stepKey, stepLabel) => {
+      updateScanPipelinePreview(stepDataUrl, stepKey, stepLabel);
+      const stepProgress = { cropped: 18, upscaled: 23, threshold: 28 }[stepKey];
+      if (stepProgress) setScanProgress(stepProgress, stepLabel);
+    });
     scanState.processedDataUrl = processedDataUrl;
+    updateScanPipelinePreview(processedDataUrl, 'ocr', 'Reading text…');
     setScanProgress(30, 'Reading text…');
 
     // ── Step 2: Tesseract OCR ──
@@ -1644,10 +1716,26 @@ async function runOCRPipeline(dataUrl) {
   }
 }
 
-// ── OpenCV preprocessing: grayscale → denoise → adaptive threshold ──
+// ── OpenCV preprocessing: crop → upscale → denoise → adaptive threshold ──
 // This step dramatically improves Tesseract accuracy on phone-camera photos
-// of crumpled/shadowed receipts compared to feeding it the raw photo.
-function preprocessImageWithOpenCV(dataUrl) {
+// of crumpled/shadowed/small-in-frame receipts compared to feeding it the
+// raw photo. Each major stage emits a live preview via onStep so the user
+// can visually verify the pipeline worked correctly on their specific photo.
+function preprocessImageWithOpenCV(dataUrl, onStep) {
+  // emit(mat, stepKey, label) snapshots the current OpenCV Mat to a data URL
+  // and forwards it to the UI so the user sees each processing stage live,
+  // like a document-scanner app. Failures here are non-fatal — if a preview
+  // frame can't be generated for some reason, processing continues silently.
+  const emit = (mat, stepKey, label) => {
+    if (!onStep) return;
+    try {
+      const c = document.createElement('canvas');
+      c.width = mat.cols; c.height = mat.rows;
+      window.cv.imshow(c, mat);
+      onStep(c.toDataURL('image/png'), stepKey, label);
+    } catch (e) { /* skip this preview frame, processing still continues */ }
+  };
+
   return new Promise((resolve) => {
     const img = new Image();
     img.onload = () => {
@@ -1717,6 +1805,7 @@ function preprocessImageWithOpenCV(dataUrl) {
         }
 
         const working = cropped || gray;
+        emit(working, 'cropped', cropped ? 'Cropped to receipt' : 'Could not auto-crop — using full photo');
 
         // ── Step 2: upscale if the cropped receipt is small ──
         // OCR accuracy drops sharply when character height is under ~20px.
@@ -1732,6 +1821,7 @@ function preprocessImageWithOpenCV(dataUrl) {
           cv.resize(working, resized, new cv.Size(0, 0), scaleFactor, scaleFactor, cv.INTER_CUBIC);
           didResize = true;
         }
+        emit(resized, 'upscaled', didResize ? `Upscaled ${Math.min(3, targetMinDim/curMinDim).toFixed(1)}×` : 'Already high resolution');
 
         // ── Step 3: denoise + adaptive threshold, block size scaled to image size ──
         const denoised = new cv.Mat();
@@ -1744,6 +1834,7 @@ function preprocessImageWithOpenCV(dataUrl) {
         if (blockSize % 2 === 0) blockSize += 1;
         if (blockSize < 11) blockSize = 11;
         cv.adaptiveThreshold(denoised, thresh, 255, cv.ADAPTIVE_THRESH_GAUSSIAN_C, cv.THRESH_BINARY, blockSize, 10);
+        emit(thresh, 'threshold', 'Black & white text mask');
 
         // ── Output ──
         const outCanvas = document.createElement('canvas');
@@ -1778,7 +1869,7 @@ function preprocessImageWithOpenCV(dataUrl) {
 function extractFuelFieldsFromText(text) {
   const clean = text.replace(/[|]/g, 'l').replace(/\u20b9/g, '₹'); // common OCR misreads
   const lines = clean.split('\n').map(l => l.trim()).filter(Boolean);
-  const joined = clean.replace(/\s+/g, ' ');
+  const joined = clean.replace(/\s+/g, ' '); // used ONLY for date search — see note below
 
   const result = {
     date: null, dateConf: 'missing',
@@ -1789,7 +1880,35 @@ function extractFuelFieldsFromText(text) {
     station: null, stationConf: 'missing',
   };
 
+  // ── Core fix: match label + number on the SAME LINE only ────────────
+  // Earlier versions searched the entire receipt flattened into one long
+  // string. That let a number belonging to one field "bleed" into another
+  // field's match — e.g. Rate's value getting picked up as Volume, or
+  // Volume's value getting picked up as Cost — whenever the generic search
+  // happened to land on the wrong nearby digits. Searching line-by-line and
+  // requiring the label and its number to co-occur on the same physical
+  // receipt line eliminates that entire class of cross-field mixups.
+  function findOnSameLine(labelPatterns, numberRe, validate) {
+    for (const line of lines) {
+      for (const lp of labelPatterns) {
+        if (lp.re.test(line)) {
+          const afterLabel = line.slice(line.search(lp.re));
+          const m = afterLabel.match(numberRe) || line.match(numberRe);
+          if (m) {
+            const val = parseFloat(m[1]);
+            if (validate(val)) return { val, conf: lp.conf };
+          }
+        }
+      }
+    }
+    return null;
+  }
+
   // ── DATE ──────────────────────────────────────────────────────
+  // Dates are searched on the flattened text since a DD-MM-YYYY (or month-
+  // name) triplet is distinctive enough that it essentially never collides
+  // with a different field's numbers — there's no other field shaped like
+  // "two-or-more numbers separated by - or / forming a valid calendar date".
   // Supports: DD/MM/YYYY, YYYY-MM-DD, DD-MM-YY, AND month-name formats
   // like "12-APR-2026", "12 Apr 2026", "Apr 12, 2026".
   const MONTHS = { jan:1,feb:2,mar:3,apr:4,may:5,jun:6,jul:7,aug:8,sep:9,sept:9,oct:10,nov:11,dec:12 };
@@ -1803,9 +1922,9 @@ function extractFuelFieldsFromText(text) {
     { re: new RegExp(`\\b(${monthNamePattern})[\\s\\-./]+(\\d{1,2}),?[\\s\\-./]+(\\d{4})\\b`, 'i'),
       fmt: (m) => `${m[3]}-${String(MONTHS[m[1].toLowerCase()]).padStart(2,'0')}-${m[2].padStart(2,'0')}`, conf: 'high' },
     // Numeric DD/MM/YYYY or DD-MM-YYYY (assume day-first, standard for Indian receipts)
-    { re: /\b(\d{2})[\/\-.](\d{2})[\/\-.](\d{4})\b/, fmt: (m) => `${m[3]}-${m[2]}-${m[1]}`, conf: 'high' },
+    { re: /\b(\d{1,2})[\/\-.](\d{1,2})[\/\-.](\d{4})\b/, fmt: (m) => `${m[3]}-${m[2].padStart(2,'0')}-${m[1].padStart(2,'0')}`, conf: 'high' },
     // YYYY-MM-DD (ISO)
-    { re: /\b(\d{4})[\/\-.](\d{2})[\/\-.](\d{2})\b/, fmt: (m) => `${m[1]}-${m[2]}-${m[3]}`, conf: 'high' },
+    { re: /\b(\d{4})[\/\-.](\d{1,2})[\/\-.](\d{1,2})\b/, fmt: (m) => `${m[1]}-${m[2].padStart(2,'0')}-${m[3].padStart(2,'0')}`, conf: 'high' },
     // 2-digit year fallback: DD/MM/YY
     { re: /\b(\d{2})[\/\-.](\d{2})[\/\-.](\d{2})\b/, fmt: (m) => `20${m[3]}-${m[2]}-${m[1]}`, conf: 'medium' },
   ];
@@ -1823,69 +1942,59 @@ function extractFuelFieldsFromText(text) {
   }
 
   // ── LITRES / VOLUME ─────────────────────────────────────────────
-  // OCR frequently misreads the "L" unit suffix as t, 1, i, or drops it
-  // entirely (e.g. "15.93t", "15.93L", "15.931"). We match the number right
-  // after "volume/vol/qty" regardless of what (if anything) follows it,
-  // since the label itself is the strongest signal, not the unit character.
-  const litrePatterns = [
-    { re: /(?:volume|vol)\s*[:\-]?\s*(\d{1,3}\.\d{1,3})/i, conf: 'high' },
-    { re: /(?:qty|quantity)\s*[:\-]?\s*(\d{1,3}\.\d{1,3})/i, conf: 'high' },
-    { re: /(\d{1,3}\.\d{1,3})\s*(?:ltr|litre|liter)s?\b/i, conf: 'high' },
-    { re: /(\d{1,3}\.\d{1,3})\s*[lLtT1iI]\b/, conf: 'medium' }, // tolerate misread unit char
+  // Must find the number on the SAME line as "volume" or "qty" — this is
+  // what stops e.g. a Rate value from ever being mistaken for Volume.
+  const litreLabels = [
+    { re: /\b(volume|vol)\b/i, conf: 'high' },
+    { re: /\b(qty|quantity)\b/i, conf: 'high' },
   ];
-  for (const p of litrePatterns) {
-    const m = joined.match(p.re);
-    if (m) {
-      const val = parseFloat(m[1]);
-      if (val > 0 && val < 200) { result.litres = val; result.litresConf = p.conf; break; }
+  let litreHit = findOnSameLine(litreLabels, /(\d{1,3}\.\d{1,3})/, v => v > 0 && v < 200);
+  if (litreHit) {
+    result.litres = litreHit.val; result.litresConf = litreHit.conf;
+  } else {
+    // Fallback: a number directly followed by ltr/litre/liter, still same-line
+    // by construction since we check one line at a time.
+    for (const line of lines) {
+      const m = line.match(/(\d{1,3}\.\d{1,3})\s*(?:ltr|litre|liter)s?\b/i);
+      if (m) {
+        const val = parseFloat(m[1]);
+        if (val > 0 && val < 200) { result.litres = val; result.litresConf = 'medium'; break; }
+      }
     }
   }
 
   // ── PRICE PER LITRE ──────────────────────────────────────────────
-  // Receipts vary: "RATE : 103.54 INR/Ltr", "RATE © 103.54", "Rate :Rs.97.30",
-  // "Price/L 94.50", "@ 94.50/L". The "Rs." / "₹" / "INR" currency marker can
-  // appear either immediately before OR after the number, or not at all.
-  const ppl_patterns = [
-    // "RATE <junk> 103.54 <unit>/L" — unit appears AFTER the number
-    { re: /rate\s*[^a-zA-Z0-9]{0,4}\s*(?:rs\.?|₹|inr)?\s*(\d{2,3}\.\d{1,2})\s*(?:inr|rs\.?|₹)?\s*\/\s*l(?:tr|itre)?/i, conf: 'high' },
-    // "Rate :Rs.97.30" or "RATE: 103.54" — currency symbol/word optional, right before the number
-    { re: /rate\s*[:\-=©]?\s*(?:rs\.?|₹|inr)?\s*(\d{2,3}\.\d{1,2})\b/i, conf: 'high' },
-    // "Price/L 94.50" or "Price per litre: 94.50"
-    { re: /price\s*(?:\/|per)?\s*l(?:tr|itre)?\s*[:\-]?\s*(?:rs\.?|₹)?\s*(\d{2,3}\.\d{1,2})/i, conf: 'high' },
-    // "@ 94.50/L" — only trust this if immediately followed by a litre unit
-    { re: /@\s*(?:rs\.?|₹)?\s*(\d{2,3}\.\d{1,2})\s*\/?\s*l(?:tr|itre)?\b/i, conf: 'medium' },
+  // Same-line match against "rate" or "price/L" labels only. Deliberately
+  // does NOT trust generic labels like "RSP" — that field doesn't reliably
+  // mean price-per-litre across different receipt formats/POS systems, and
+  // trusting it produced a confidently wrong number on at least one real
+  // digital UPI receipt format.
+  const pplLabels = [
+    { re: /\brate\b/i, conf: 'high' },
+    { re: /\bprice\s*(?:\/|per)?\s*l(?:tr|itre)?\b/i, conf: 'high' },
   ];
-  for (const p of ppl_patterns) {
-    const m = joined.match(p.re);
-    if (m) {
-      const val = parseFloat(m[1]);
-      // Realistic Indian fuel price range — keeps OCR garbage from slipping through
-      if (val > 60 && val < 150) { result.pricePerL = val; result.pricePerLConf = p.conf; break; }
-    }
-  }
+  let pplHit = findOnSameLine(pplLabels, /(\d{1,4}\.\d{1,2})/, v => v > 60 && v < 150);
+  if (pplHit) { result.pricePerL = pplHit.val; result.pricePerLConf = pplHit.conf; }
 
   // ── TOTAL COST / AMOUNT / SALE ───────────────────────────────────
-  // Different fuel brands use different labels for the final payable amount:
-  // "AMOUNT:", "Sale:" (IndianOil), "Total:", "Net Amount:", "Amount Payable:".
-  // IMPORTANT: this list is checked in priority order and we deliberately
-  // search for these BEFORE any generic Rs.-prefixed number, so a currency
-  // value attached to "Rate" earlier in the text never gets mistaken for the
-  // total — that exact bug previously caused Rate (₹97.30) to be read as Cost.
-  const costPatterns = [
-    { re: /\bsale\s*[:\-]?\s*(?:rs\.?|₹|inr)?\s*(\d{2,6}(?:\.\d{2})?)\b/i, conf: 'high' },
-    { re: /\bamount\s*[:\-]?\s*(?:rs\.?|₹|inr)?\s*(\d{2,6}(?:\.\d{2})?)\b/i, conf: 'high' },
-    { re: /(?:total|grand\s*total|net\s*amount|amount\s*payable)\s*[:\-]?\s*(?:rs\.?|₹|inr)?\s*(\d{2,6}(?:\.\d{2})?)/i, conf: 'high' },
-    { re: /(?:rs\.?|₹|inr)\s*(\d{2,6}\.\d{2})/i, conf: 'medium' },
+  // Different fuel brands and digital receipts use different labels for the
+  // final payable amount: "AMOUNT:", "Sale:" (IndianOil), "Transaction
+  // Amount:" (UPI/digital), "Total:", "Net Amount:", "Amount Payable:".
+  // Same-line matching means a Rate or Volume number on a DIFFERENT line can
+  // never accidentally get picked up as the cost.
+  const costLabels = [
+    { re: /\bsale\b/i, conf: 'high' },
+    { re: /\btransaction\s*amount\b/i, conf: 'high' },
+    { re: /\bamount\s*payable\b/i, conf: 'high' },
+    { re: /\bnet\s*amount\b/i, conf: 'high' },
+    { re: /\bgrand\s*total\b/i, conf: 'high' },
+    { re: /\bamount\b/i, conf: 'high' },
+    { re: /\btotal\b/i, conf: 'high' },
   ];
-  for (const p of costPatterns) {
-    const m = joined.match(p.re);
-    if (m) {
-      const val = parseFloat(m[1]);
-      if (val > 50 && val < 50000) { result.cost = val; result.costConf = p.conf; break; }
-    }
-  }
+  let costHit = findOnSameLine(costLabels, /(\d{2,6}(?:\.\d{2})?)/, v => v > 50 && v < 50000);
+  if (costHit) { result.cost = costHit.val; result.costConf = costHit.conf; }
 
-  // ── Cross-validation (conservative — only fills GAPS, never overrides a real find) ──
+  // ── Cross-validation (conservative — only fills GAPS, never overrides a direct same-line match) ──
   // If cost is still completely missing, derive it from litres × price/L.
   if (!result.cost && result.litres && result.pricePerL) {
     result.cost = Math.round(result.litres * result.pricePerL * 100) / 100;
@@ -1897,15 +2006,16 @@ function extractFuelFieldsFromText(text) {
     result.pricePerLConf = 'medium';
   }
   // Sanity cross-check: if we have all three (cost, litres, price/L) from DIRECT
-  // matches, verify they roughly agree. If they're wildly inconsistent, it means
-  // one of the OCR reads is garbage — flag it as low-confidence rather than silently
-  // trusting a possibly-wrong number.
+  // same-line matches, verify they roughly agree. If they're wildly inconsistent,
+  // it means one of the OCR reads is garbage (or a label like RSP doesn't
+  // actually correspond to this transaction's per-litre rate) — flag it as
+  // low-confidence rather than silently trusting a possibly-wrong number.
   if (result.cost && result.litres && result.pricePerL) {
     const expected = result.litres * result.pricePerL;
     const diff = Math.abs(expected - result.cost) / result.cost;
     if (diff > 0.15) { // more than 15% mismatch — something's off
-      // Trust AMOUNT (cost) over a derived rate, since "AMOUNT" is usually printed
-      // clearly and rate-parsing is more failure-prone due to unit-symbol noise.
+      // Trust AMOUNT (cost) over a derived rate, since "AMOUNT"/"SALE" labels
+      // are usually printed clearly and rate-parsing is more failure-prone.
       if (result.pricePerLConf !== 'high') {
         result.pricePerL = Math.round((result.cost / result.litres) * 100) / 100;
         result.pricePerLConf = 'low';
@@ -1916,17 +2026,12 @@ function extractFuelFieldsFromText(text) {
   }
 
   // ── ODOMETER ── e.g. "ODO: 45230", "KM 45230", "Odometer Reading 45230"
-  const odoPatterns = [
-    { re: /(?:odo(?:meter)?|km\s*reading)\s*[:\-]?\s*(\d{3,7})/i, conf: 'high' },
-    { re: /\bkm\b\s*[:\-]?\s*(\d{3,7})\b/i, conf: 'medium' },
+  const odoLabels = [
+    { re: /\bodo(?:meter)?\b/i, conf: 'high' },
+    { re: /\bkm\s*reading\b/i, conf: 'high' },
   ];
-  for (const p of odoPatterns) {
-    const m = joined.match(p.re);
-    if (m) {
-      const val = parseInt(m[1], 10);
-      if (val > 0 && val < 9999999) { result.odometer = val; result.odometerConf = p.conf; break; }
-    }
-  }
+  let odoHit = findOnSameLine(odoLabels, /(\d{3,7})/, v => v > 0 && v < 9999999);
+  if (odoHit) { result.odometer = Math.round(odoHit.val); result.odometerConf = odoHit.conf; }
 
   // ── STATION NAME ── look for known Indian fuel brands anywhere in the text
   // (not just the first few lines — OCR sometimes drops/reorders early lines,
