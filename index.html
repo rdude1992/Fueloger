@@ -1867,7 +1867,19 @@ function preprocessImageWithOpenCV(dataUrl, onStep) {
 // Each field tries multiple patterns in priority order. Confidence is based
 // on which pattern matched and whether cross-checks (e.g. cost = litres × price) hold.
 function extractFuelFieldsFromText(text) {
-  const clean = text.replace(/[|]/g, 'l').replace(/\u20b9/g, '₹'); // common OCR misreads
+  // ── Sanitize OCR artifacts BEFORE any field matching ────────────
+  // Tesseract sometimes inserts a stray space right around a decimal point
+  // when the printed dot has a thin gap either side (common on dot-matrix
+  // receipt printers), e.g. "00026. 17" instead of "00026.17". This single
+  // pass repairs every such number anywhere in the receipt — once here,
+  // rather than patching every individual field's regex — by collapsing any
+  // whitespace that sits between a digit and a "." as long as a digit also
+  // follows. It deliberately does NOT touch ". " after a non-digit (e.g.
+  // "Thank you. 5 stars", "Bill No. 12345") so normal sentence punctuation
+  // is left alone.
+  const sanitized = text.replace(/(\d)\s*\.\s*(\d)/g, '$1.$2');
+
+  const clean = sanitized.replace(/[|]/g, 'l').replace(/\u20b9/g, '₹'); // common OCR misreads
   const lines = clean.split('\n').map(l => l.trim()).filter(Boolean);
   const joined = clean.replace(/\s+/g, ' '); // used ONLY for date search — see note below
 
@@ -1944,18 +1956,22 @@ function extractFuelFieldsFromText(text) {
   // ── LITRES / VOLUME ─────────────────────────────────────────────
   // Must find the number on the SAME line as "volume" or "qty" — this is
   // what stops e.g. a Rate value from ever being mistaken for Volume.
+  // The integer part allows up to 5 digits (not just 1-3) to tolerate OCR
+  // padding receipts print with leading zeros, e.g. "00026.17" — the actual
+  // realistic-value check below (val > 0 && val < 200) is what keeps garbage
+  // out, not the digit-count cap.
   const litreLabels = [
     { re: /\b(volume|vol)\b/i, conf: 'high' },
     { re: /\b(qty|quantity)\b/i, conf: 'high' },
   ];
-  let litreHit = findOnSameLine(litreLabels, /(\d{1,3}\.\d{1,3})/, v => v > 0 && v < 200);
+  let litreHit = findOnSameLine(litreLabels, /(\d{1,5}\.\d{1,3})/, v => v > 0 && v < 200);
   if (litreHit) {
     result.litres = litreHit.val; result.litresConf = litreHit.conf;
   } else {
     // Fallback: a number directly followed by ltr/litre/liter, still same-line
     // by construction since we check one line at a time.
     for (const line of lines) {
-      const m = line.match(/(\d{1,3}\.\d{1,3})\s*(?:ltr|litre|liter)s?\b/i);
+      const m = line.match(/(\d{1,5}\.\d{1,3})\s*(?:ltr|litre|liter)s?\b/i);
       if (m) {
         const val = parseFloat(m[1]);
         if (val > 0 && val < 200) { result.litres = val; result.litresConf = 'medium'; break; }
