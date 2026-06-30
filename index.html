@@ -1900,15 +1900,36 @@ function extractFuelFieldsFromText(text) {
   // happened to land on the wrong nearby digits. Searching line-by-line and
   // requiring the label and its number to co-occur on the same physical
   // receipt line eliminates that entire class of cross-field mixups.
-  function findOnSameLine(labelPatterns, numberRe, validate) {
+  //
+  // allowCurrencyStrip: when true, if the matched number FAILS the realistic
+  // range check, we retry once after stripping exactly one leading digit and
+  // re-validate. This specifically targets a real OCR failure mode where the
+  // ₹ symbol's glyph gets visually fused with the very next digit during
+  // character segmentation and Tesseract reads the pair as a single extra
+  // leading digit (e.g. "₹ 2900.63" → "32900.63" or "RSP: ₹96.72" →
+  // "Z96.72"→"396.72"). This NEVER fires when the original number is already
+  // realistic — it only kicks in as a fallback once the direct read is
+  // rejected, so a genuinely valid value is never altered.
+  function findOnSameLine(labelPatterns, numberRe, validate, allowCurrencyStrip) {
     for (const line of lines) {
       for (const lp of labelPatterns) {
         if (lp.re.test(line)) {
           const afterLabel = line.slice(line.search(lp.re));
           const m = afterLabel.match(numberRe) || line.match(numberRe);
           if (m) {
-            const val = parseFloat(m[1]);
+            const raw = m[1];
+            const val = parseFloat(raw);
             if (validate(val)) return { val, conf: lp.conf };
+
+            if (allowCurrencyStrip && raw.length > 1 && /^\d/.test(raw)) {
+              const strippedVal = parseFloat(raw.slice(1));
+              if (!isNaN(strippedVal) && validate(strippedVal)) {
+                // One confidence notch down — this is a corrected reconstruction,
+                // not a value read directly off the receipt with no caveats.
+                const downgradedConf = lp.conf === 'high' ? 'medium' : 'low';
+                return { val: strippedVal, conf: downgradedConf, currencyStripped: true };
+              }
+            }
           }
         }
       }
@@ -1985,11 +2006,16 @@ function extractFuelFieldsFromText(text) {
   // mean price-per-litre across different receipt formats/POS systems, and
   // trusting it produced a confidently wrong number on at least one real
   // digital UPI receipt format.
+  // allowCurrencyStrip=true: a misread ₹ symbol fused onto the rate (e.g.
+  // "₹96.72" OCR'd as "396.72") would otherwise fail the 60-150 sanity range
+  // and be silently rejected — this lets the engine retry once with the
+  // leading digit stripped, which is exactly what happened on a real HP
+  // digital receipt where "RSP: ₹96.72" became "RSP: 396.72".
   const pplLabels = [
     { re: /\brate\b/i, conf: 'high' },
     { re: /\bprice\s*(?:\/|per)?\s*l(?:tr|itre)?\b/i, conf: 'high' },
   ];
-  let pplHit = findOnSameLine(pplLabels, /(\d{1,4}\.\d{1,2})/, v => v > 60 && v < 150);
+  let pplHit = findOnSameLine(pplLabels, /(\d{1,4}\.\d{1,2})/, v => v > 60 && v < 150, true);
   if (pplHit) { result.pricePerL = pplHit.val; result.pricePerLConf = pplHit.conf; }
 
   // ── TOTAL COST / AMOUNT / SALE ───────────────────────────────────
@@ -1998,6 +2024,11 @@ function extractFuelFieldsFromText(text) {
   // Amount:" (UPI/digital), "Total:", "Net Amount:", "Amount Payable:".
   // Same-line matching means a Rate or Volume number on a DIFFERENT line can
   // never accidentally get picked up as the cost.
+  // Upper bound tightened from 50000 to 20000: a single two-wheeler/car fill
+  // realistically tops out well under that, and a tighter ceiling means a
+  // misread ₹ symbol that inflates a real ₹2900 into ₹32900 actually FAILS
+  // the check (instead of sliding through as "plausible"), which is what
+  // lets the currency-strip retry below kick in and recover the true value.
   const costLabels = [
     { re: /\bsale\b/i, conf: 'high' },
     { re: /\btransaction\s*amount\b/i, conf: 'high' },
@@ -2007,7 +2038,7 @@ function extractFuelFieldsFromText(text) {
     { re: /\bamount\b/i, conf: 'high' },
     { re: /\btotal\b/i, conf: 'high' },
   ];
-  let costHit = findOnSameLine(costLabels, /(\d{2,6}(?:\.\d{2})?)/, v => v > 50 && v < 50000);
+  let costHit = findOnSameLine(costLabels, /(\d{2,6}(?:\.\d{2})?)/, v => v > 50 && v < 20000, true);
   if (costHit) { result.cost = costHit.val; result.costConf = costHit.conf; }
 
   // ── Cross-validation (conservative — only fills GAPS, never overrides a direct same-line match) ──
