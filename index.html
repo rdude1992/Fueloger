@@ -290,6 +290,27 @@
   .active-trip-end-btn { flex-shrink: 0; background: var(--green); color: #fff; border: none; border-radius: 12px; padding: 10px 18px; font-size: 13px; font-weight: 800; cursor: pointer; transition: opacity .15s, transform .1s; white-space: nowrap; }
   .active-trip-end-btn:active { opacity: .85; transform: scale(.97); }
 
+  /* MAINTENANCE TRACKER (Service / Tyre) */
+  .maint-section { margin-bottom: 20px; }
+  .maint-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .maint-card { background: var(--bg2); border-radius: 14px; padding: 14px; position: relative; overflow: hidden; border: 1.5px solid var(--border); }
+  .maint-card.ok { border-color: rgba(16,185,129,.3); }
+  .maint-card.due-soon { border-color: rgba(245,158,11,.4); }
+  .maint-card.overdue { border-color: rgba(239,68,68,.45); background: linear-gradient(135deg, rgba(239,68,68,.08), var(--bg2)); }
+  .maint-card.none { border-style: dashed; opacity: .7; }
+  .maint-card-header { display: flex; align-items: center; gap: 6px; margin-bottom: 8px; }
+  .maint-card-icon { font-size: 16px; }
+  .maint-card-label { font-size: 11px; font-weight: 700; color: var(--text2); text-transform: uppercase; letter-spacing: .4px; flex: 1; }
+  .maint-status-pill { font-size: 9px; font-weight: 800; padding: 2px 6px; border-radius: 5px; text-transform: uppercase; letter-spacing: .3px; }
+  .maint-status-pill.ok { background: rgba(16,185,129,.18); color: var(--green); }
+  .maint-status-pill.due-soon { background: rgba(245,158,11,.18); color: var(--amber); }
+  .maint-status-pill.overdue { background: rgba(239,68,68,.2); color: var(--red); }
+  .maint-card-km { font-size: 22px; font-weight: 800; letter-spacing: -.5px; font-variant-numeric: tabular-nums; line-height: 1; }
+  .maint-card-km-unit { font-size: 11px; color: var(--text3); font-weight: 600; margin-left: 3px; }
+  .maint-card-sub { font-size: 11px; color: var(--text3); margin-top: 4px; }
+  .maint-card-none-text { font-size: 12px; color: var(--text3); line-height: 1.4; }
+  .maint-card-add-btn { margin-top: 8px; display: inline-flex; align-items: center; gap: 4px; font-size: 11px; font-weight: 700; color: var(--primary); cursor: pointer; }
+
   /* START TRIP BUTTON (in trip modal) */
   .start-trip-btn { width: 100%; display: flex; align-items: center; justify-content: center; gap: 8px; padding: 12px; border-radius: 12px; border: 1.5px dashed var(--green); background: rgba(16,185,129,.06); color: var(--green); font-size: 14px; font-weight: 700; cursor: pointer; margin-bottom: 14px; transition: background .2s; }
   .start-trip-btn:active { background: rgba(16,185,129,.14); }
@@ -489,6 +510,9 @@
 
     <!-- Active/in-progress trip — shown only when a trip is running -->
     <div id="active-trip-section"></div>
+
+    <!-- Service / Tyre maintenance tracker -->
+    <div class="maint-section" id="maint-section"></div>
 
     <div id="dash-odo"></div>
 
@@ -1073,7 +1097,7 @@
       <div class="cat-grid" id="exp-cat-grid"></div>
       <div class="form-group">
         <label class="form-label">Vehicle</label>
-        <select class="form-input form-select" id="exp-vehicle"></select>
+        <select class="form-input form-select" id="exp-vehicle" onchange="updateExpOdoFieldVisibility(selectedExpCat, this.value)"></select>
       </div>
       <div class="form-row">
         <div class="form-group">
@@ -1084,6 +1108,11 @@
           <label class="form-label">Amount (₹)</label>
           <input type="number" class="form-input" id="exp-amount" placeholder="0">
         </div>
+      </div>
+      <div class="form-group" id="exp-odo-group" style="display:none">
+        <label class="form-label" id="exp-odo-label">Odometer at Service (km)</label>
+        <input type="number" class="form-input" id="exp-odo" placeholder="e.g. 45230">
+        <div class="form-hint" id="exp-odo-hint" style="margin-top:6px"></div>
       </div>
       <div class="form-group">
         <label class="form-label">Description</label>
@@ -2549,6 +2578,30 @@ function purposeMeta(p) {
 // ─── EXPENSE MODAL ────────────────────────────────────────────
 let selectedExpCat = 'toll';
 
+// Categories where tracking the odometer reading at time of service matters —
+// powers the "km since last service/tyre change" dashboard tracker.
+const MAINTENANCE_CATS = ['service', 'repair', 'tire'];
+
+function updateExpOdoFieldVisibility(catId, vehicleId) {
+  const group = document.getElementById('exp-odo-group');
+  const label = document.getElementById('exp-odo-label');
+  const hint = document.getElementById('exp-odo-hint');
+  if (!group) return;
+
+  if (MAINTENANCE_CATS.includes(catId)) {
+    group.style.display = '';
+    label.textContent = catId === 'tire' ? 'Odometer at Tyre Change (km)' : 'Odometer at Service (km)';
+    const v = vehicles.find(x => x.id === vehicleId);
+    if (v && hint) {
+      hint.textContent = `Current odometer: ${fmt(v.odo)} km`;
+    } else if (hint) {
+      hint.textContent = '';
+    }
+  } else {
+    group.style.display = 'none';
+  }
+}
+
 function buildCatGrid(selected) {
   const grid = document.getElementById('exp-cat-grid');
   grid.innerHTML = EXP_CATS.map(c=>`
@@ -2566,6 +2619,8 @@ function selectExpCat(id) {
     document.getElementById('exp-vendor-label').textContent = cat.vendorLabel;
     document.getElementById('exp-vendor').placeholder = cat.vendorLabel + '…';
   }
+  const vid = document.getElementById('exp-vehicle').value;
+  updateExpOdoFieldVisibility(id, vid);
 }
 
 function openExpenseModal(id=null) {
@@ -2585,12 +2640,13 @@ function openExpenseModal(id=null) {
       document.getElementById('exp-desc').value = e.desc || '';
       document.getElementById('exp-vendor').value = e.vendor || '';
       document.getElementById('exp-notes').value = e.notes || '';
+      document.getElementById('exp-odo').value = e.odo || '';
     }
   } else {
     selectedExpCat = 'toll';
     buildCatGrid('toll');
     document.getElementById('exp-date').value = today();
-    ['exp-amount','exp-desc','exp-vendor','exp-notes'].forEach(x=>document.getElementById(x).value='');
+    ['exp-amount','exp-desc','exp-vendor','exp-notes','exp-odo'].forEach(x=>document.getElementById(x).value='');
     if (expVehicleId) document.getElementById('exp-vehicle').value = expVehicleId;
     else if (dashVehicleId) document.getElementById('exp-vehicle').value = dashVehicleId;
   }
@@ -2599,6 +2655,7 @@ function openExpenseModal(id=null) {
     document.getElementById('exp-vendor-label').textContent = cat.vendorLabel;
     document.getElementById('exp-vendor').placeholder = cat.vendorLabel + '…';
   }
+  updateExpOdoFieldVisibility(selectedExpCat, document.getElementById('exp-vehicle').value);
   if (window.clearModalSwipeStyles) window.clearModalSwipeStyles(m.id);
   m.classList.add('open');
 }
@@ -2608,12 +2665,14 @@ function saveExpenseEntry() {
   if (!vid) { toast('Select a vehicle'); return; }
   const amount = parseFloat(document.getElementById('exp-amount').value);
   if (!amount) { toast('Enter an amount'); return; }
+  const odoVal = parseFloat(document.getElementById('exp-odo').value) || null;
   const id = document.getElementById('exp-edit-id').value || uid();
   const entry = {
     id, vehicleId: vid,
     category: selectedExpCat,
     date: document.getElementById('exp-date').value || today(),
     amount,
+    odo: odoVal,
     desc: document.getElementById('exp-desc').value.trim(),
     vendor: document.getElementById('exp-vendor').value.trim(),
     notes: document.getElementById('exp-notes').value.trim(),
@@ -2621,6 +2680,9 @@ function saveExpenseEntry() {
   };
   const idx = expenseEntries.findIndex(x=>x.id===id);
   if (idx>=0) expenseEntries[idx]=entry; else expenseEntries.push(entry);
+  // Keep the vehicle's live odometer in sync, same as fuel/trip entries do
+  const v = vehicles.find(x=>x.id===vid);
+  if (v && odoVal && odoVal > v.odo) v.odo = odoVal;
   save();
   closeModal('modal-expense');
   toast('Expense saved!');
@@ -2716,7 +2778,7 @@ function renderExpenseList() {
       <div class="entry-dot ${e.category}" style="font-size:20px;background:${cat.color}22;width:40px;height:40px;border-radius:10px;display:flex;align-items:center;justify-content:center;flex-shrink:0">${cat.icon}</div>
       <div class="entry-info">
         <div class="entry-name">${e.desc || cat.label}${e.vendor?' · '+e.vendor:''}</div>
-        <div class="entry-meta">${v?.name||'?'} · ${fmtDate(e.date)}</div>
+        <div class="entry-meta">${v?.name||'?'} · ${fmtDate(e.date)}${e.odo?' · '+fmt(e.odo)+' km':''}</div>
       </div>
       <div class="entry-amount">
         <div class="entry-val" style="color:${cat.color}">₹${fmt(e.amount)}</div>
@@ -2824,6 +2886,110 @@ function renderActiveTripCard() {
   }, 30000);
 }
 
+// ─── MAINTENANCE TRACKER (Service / Tyre) ──────────────────────
+// Finds the most recent Service/Repair entry and the most recent Tire entry
+// (each with a recorded odometer reading), then shows km-since and days-since
+// for both, color-coded by how overdue they look against rough rule-of-thumb
+// thresholds (services every ~5,000-6,000km, tyres every ~28,000-35,000km —
+// these are deliberately generous defaults since actual intervals vary a lot
+// by vehicle/manufacturer; this is a reminder nudge, not a precise spec).
+const MAINT_THRESHOLDS = {
+  service: { dueKm: 6000,  warnKm: 5000,  dueDays: 180,  warnDays: 150 },
+  tire:    { dueKm: 35000, warnKm: 28000, dueDays: 1460, warnDays: 1200 }, // ~4 years
+};
+
+function findLastMaintenanceEntry(expenses, categoryIds) {
+  // 'service' lookup also includes 'repair' since a repair often happens
+  // alongside or instead of a scheduled service and still resets the clock.
+  const candidates = expenses
+    .filter(e => categoryIds.includes(e.category) && e.odo != null && e.odo > 0)
+    .sort((a, b) => b.date.localeCompare(a.date));
+  return candidates[0] || null;
+}
+
+function getMaintStatus(kmSince, daysSince, thresholds) {
+  if (kmSince >= thresholds.dueKm || daysSince >= thresholds.dueDays) return 'overdue';
+  if (kmSince >= thresholds.warnKm || daysSince >= thresholds.warnDays) return 'due-soon';
+  return 'ok';
+}
+
+function daysBetween(dateStr) {
+  return Math.floor((Date.now() - new Date(dateStr).getTime()) / 86400000);
+}
+
+function buildMaintCard(opts) {
+  const { icon, label, entry, currentOdo, thresholds, addCategoryId } = opts;
+
+  if (!entry) {
+    return `<div class="maint-card none">
+      <div class="maint-card-header">
+        <div class="maint-card-icon">${icon}</div>
+        <div class="maint-card-label">${label}</div>
+      </div>
+      <div class="maint-card-none-text">No record yet</div>
+      <div class="maint-card-add-btn" onclick="openExpenseModalWithCategory('${addCategoryId}')">+ Log one</div>
+    </div>`;
+  }
+
+  const kmSince = currentOdo != null ? Math.max(0, currentOdo - entry.odo) : null;
+  const daysSince = daysBetween(entry.date);
+  const status = kmSince != null ? getMaintStatus(kmSince, daysSince, thresholds) : 'ok';
+
+  const statusLabel = { ok: 'OK', 'due-soon': 'Due Soon', overdue: 'Overdue' }[status];
+  const kmDisplay = kmSince != null ? fmt(kmSince) : '—';
+  const daysDisplay = daysSince === 0 ? 'today' : daysSince === 1 ? '1 day ago' : `${daysSince} days ago`;
+
+  return `<div class="maint-card ${status}">
+    <div class="maint-card-header">
+      <div class="maint-card-icon">${icon}</div>
+      <div class="maint-card-label">${label}</div>
+      <div class="maint-status-pill ${status}">${statusLabel}</div>
+    </div>
+    <div class="maint-card-km">${kmDisplay}<span class="maint-card-km-unit">km ago</span></div>
+    <div class="maint-card-sub">Last: ${fmtDate(entry.date)} · ${daysDisplay}</div>
+  </div>`;
+}
+
+// Opens the expense modal pre-set to a given category — used by the maintenance
+// tracker's "+ Log one" shortcut when there's no record yet for that category.
+function openExpenseModalWithCategory(categoryId) {
+  openExpenseModal();
+  setTimeout(() => selectExpCat(categoryId), 50);
+}
+
+function renderMaintenanceTracker(vExp, curV, isAll) {
+  const section = document.getElementById('maint-section');
+  if (!section) return;
+
+  // Don't show the tracker at all if there are no vehicles yet
+  if (vehicles.length === 0) { section.innerHTML = ''; return; }
+
+  const serviceEntry = findLastMaintenanceEntry(vExp, ['service', 'repair']);
+  const tireEntry = findLastMaintenanceEntry(vExp, ['tire']);
+
+  // currentOdo: for a single vehicle, use its live odometer. For "All", use
+  // whichever vehicle the matched entry actually belongs to (since vehicles
+  // can be at very different odometer readings) — falls back to null (shows
+  // days-since only) if we can't resolve a specific vehicle for some reason.
+  function resolveOdoFor(entry) {
+    if (curV) return curV.odo;
+    if (entry) { const v = vehicles.find(x => x.id === entry.vehicleId); return v ? v.odo : null; }
+    return null;
+  }
+
+  const serviceCard = buildMaintCard({
+    icon: '🛠️', label: 'Service', entry: serviceEntry,
+    currentOdo: resolveOdoFor(serviceEntry), thresholds: MAINT_THRESHOLDS.service,
+    addCategoryId: 'service',
+  });
+  const tireCard = buildMaintCard({
+    icon: '⚙️', label: 'Tyres', entry: tireEntry,
+    currentOdo: resolveOdoFor(tireEntry), thresholds: MAINT_THRESHOLDS.tire,
+    addCategoryId: 'tire',
+  });
+
+  section.innerHTML = `<div class="maint-grid">${serviceCard}${tireCard}</div>`;
+}
 
 function renderDashboard() {
   updateSampleBanner();
@@ -2846,6 +3012,8 @@ function renderDashboard() {
   const vTrips = isAll ? tripEntries    : tripEntries.filter(x=>x.vehicleId===dashVehicleId);
   const vExp   = isAll ? expenseEntries : expenseEntries.filter(x=>x.vehicleId===dashVehicleId);
   const curV   = isAll ? null : vehicles.find(x=>x.id===dashVehicleId);
+
+  renderMaintenanceTracker(vExp, curV, isAll);
 
   // ── Odometer ──────────────────────────────────────────────────
   const odoEl = document.getElementById('dash-odo');
@@ -3457,7 +3625,8 @@ function exportData(format) {
     expenseEntries.forEach(e=>{
       const v = vehicles.find(x=>x.id===e.vehicleId);
       const cat = EXP_CATS.find(c=>c.id===e.category);
-      rows.push(['Expense', e.date, v?.name||'', cat?.label||e.category, e.amount, e.desc||'', e.vendor||'', e.notes||'']);
+      const detail1 = e.desc ? (e.odo ? `${e.desc} (${e.odo}km)` : e.desc) : (e.odo ? `${e.odo}km` : '');
+      rows.push(['Expense', e.date, v?.name||'', cat?.label||e.category, e.amount, detail1, e.vendor||'', e.notes||'']);
     });
     tripEntries.forEach(e=>{
       const v = vehicles.find(x=>x.id===e.vehicleId);
@@ -3724,9 +3893,9 @@ function seedData() {
 
   // Seed expenses
   const seedExpenses = [
-    { vehicleId:vid,  cat:'service',   amount:3500,  desc:'Full Service',      vendor:'Maruti Authorised',  daysAgo:15 },
+    { vehicleId:vid,  cat:'service',   amount:3500,  desc:'Full Service',      vendor:'Maruti Authorised',  daysAgo:15, odo:44850 },
     { vehicleId:vid,  cat:'insurance', amount:12800, desc:'Annual Premium',    vendor:'HDFC Ergo',          daysAgo:45 },
-    { vehicleId:vid,  cat:'tire',      amount:9600,  desc:'2 Tyre Replaced',   vendor:'MRF Tyres',          daysAgo:60 },
+    { vehicleId:vid,  cat:'tire',      amount:9600,  desc:'2 Tyre Replaced',   vendor:'MRF Tyres',          daysAgo:60, odo:44300 },
     { vehicleId:vid,  cat:'repair',    amount:1200,  desc:'AC Gas Refill',     vendor:'Cool Cars',          daysAgo:20 },
     { vehicleId:vid,  cat:'toll',      amount:145,   desc:'Mumbai-Pune',       vendor:'Khopoli Toll',       daysAgo:3  },
     { vehicleId:vid,  cat:'toll',      amount:145,   desc:'Mumbai-Pune',       vendor:'Khopoli Toll',       daysAgo:10 },
@@ -3734,16 +3903,16 @@ function seedData() {
     { vehicleId:vid,  cat:'parking',   amount:40,    desc:'Office Parking',    vendor:'',                   daysAgo:2  },
     { vehicleId:vid,  cat:'accessory', amount:2200,  desc:'Dashcam',           vendor:'Cartronics',         daysAgo:30 },
     { vehicleId:vid,  cat:'repair',    amount:800,   desc:'Battery Terminal',  vendor:'Local Garage',       daysAgo:90 },
-    { vehicleId:vid2, cat:'service',   amount:850,   desc:'Engine Oil Change', vendor:'Honda Auth Centre',  daysAgo:25 },
+    { vehicleId:vid2, cat:'service',   amount:850,   desc:'Engine Oil Change', vendor:'Honda Auth Centre',  daysAgo:25, odo:17750 },
     { vehicleId:vid2, cat:'insurance', amount:4200,  desc:'Annual Premium',    vendor:'Bajaj Allianz',      daysAgo:80 },
-    { vehicleId:vid2, cat:'tire',      amount:1800,  desc:'Front Tyre',        vendor:'CEAT',               daysAgo:50 },
+    { vehicleId:vid2, cat:'tire',      amount:1800,  desc:'Front Tyre',        vendor:'CEAT',               daysAgo:50, odo:17200 },
     { vehicleId:vid2, cat:'repair',    amount:350,   desc:'Brake Shoe',        vendor:'Local Mechanic',     daysAgo:35 },
     { vehicleId:vid2, cat:'accessory', amount:650,   desc:'Phone Holder',      vendor:'Amazon',             daysAgo:12 },
   ];
   seedExpenses.forEach(e=>{
     const d = new Date(now); d.setDate(d.getDate() - e.daysAgo);
     const id = uid();
-    expenseEntries.push({ id, vehicleId:e.vehicleId, category:e.cat, date:d.toISOString().split('T')[0], amount:e.amount, desc:e.desc, vendor:e.vendor||'', notes:'', createdAt:d.toISOString() });
+    expenseEntries.push({ id, vehicleId:e.vehicleId, category:e.cat, date:d.toISOString().split('T')[0], amount:e.amount, odo:e.odo||null, desc:e.desc, vendor:e.vendor||'', notes:'', createdAt:d.toISOString() });
     seedExpIds.push(id);
   });
 
