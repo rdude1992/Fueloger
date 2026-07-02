@@ -44,8 +44,6 @@
     --text2: #475569;
     --text3: #94A3B8;
   }
-  html.light .odo-display { background: linear-gradient(135deg,#1E3A5F,#2D5A8E); }
-  html.light .odo-val { background: linear-gradient(135deg,#fff,#CBD5E1); -webkit-background-clip:text; background-clip:text; -webkit-text-fill-color:transparent; }
   html.light .odo-strip-item { background: linear-gradient(135deg,#1E3A5F,#2D5A8E); }
   html.light #nav { box-shadow: 0 -1px 0 var(--border); }
   html.light .stat-card { box-shadow: 0 1px 4px rgba(0,0,0,.06); }
@@ -122,11 +120,11 @@
   /* MULTI-VEHICLE ODO STRIP */
   .odo-strip { display: flex; gap: 8px; overflow-x: auto; margin-bottom: 20px; scrollbar-width: none; }
   .odo-strip::-webkit-scrollbar { display: none; }
-  .odo-strip-item { flex-shrink: 0; background: linear-gradient(135deg,#0A0E1A,#1a1f35); border: 1px solid rgba(59,130,246,.2); border-radius: 14px; padding: 14px 16px; min-width: 130px; position: relative; overflow: hidden; }
+  .odo-strip-item { flex-shrink: 0; background: linear-gradient(135deg,#0A0E1A,#1a1f35); border: 1px solid rgba(59,130,246,.2); border-radius: 14px; padding: 16px 18px; min-width: 155px; position: relative; overflow: hidden; }
   .odo-strip-item::before { content:''; position:absolute; top:0; left:0; right:0; height:1px; background:linear-gradient(90deg,transparent,rgba(59,130,246,.4),transparent); }
-  .odo-strip-name { font-size: 10px; color: var(--text3); font-weight: 600; text-transform: uppercase; letter-spacing: .5px; margin-bottom: 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .odo-strip-val { font-size: 22px; font-weight: 800; letter-spacing: -1px; font-variant-numeric: tabular-nums; background: linear-gradient(135deg,#fff,#94A3B8); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; }
-  .odo-strip-km { font-size: 10px; color: var(--text3); margin-top: 2px; }
+  .odo-strip-name { font-size: 11px; color: var(--text3); font-weight: 600; text-transform: uppercase; letter-spacing: .5px; margin-bottom: 6px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .odo-strip-val { font-size: 26px; font-weight: 800; letter-spacing: -1px; font-variant-numeric: tabular-nums; background: linear-gradient(135deg,#fff,#94A3B8); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; }
+  .odo-strip-km { font-size: 11px; color: var(--text3); margin-top: 3px; }
 
   /* INSIGHT CARDS */
   .insight-row { display: flex; gap: 8px; margin-bottom: 12px; overflow-x: auto; scrollbar-width: none; }
@@ -268,11 +266,27 @@
   .badge.electric { background: rgba(59,130,246,.15); color: var(--primary); }
 
   /* ODOMETER DISPLAY */
-  .odo-display { background: linear-gradient(135deg, #0A0E1A, #1a1f35); border-radius: 16px; padding: 20px; text-align: center; margin-bottom: 20px; border: 1px solid rgba(59,130,246,.2); position: relative; overflow: hidden; }
+  /* DRUM-STYLE ODOMETER */
+  .odo-drum-wrap { display: flex; align-items: center; justify-content: center; gap: 10px; margin: 4px 0 8px; }
+  .odo-drum { display: inline-flex; align-items: center; gap: 2px; background: #0a0a0f; border-radius: 8px; padding: 5px 8px; border: 1px solid rgba(255,255,255,.08); box-shadow: inset 0 2px 8px rgba(0,0,0,.6), 0 1px 0 rgba(255,255,255,.04); }
+  .odo-digit { position: relative; width: 28px; height: 38px; display: flex; align-items: center; justify-content: center; background: linear-gradient(180deg, #1a1a2e 0%, #16213e 42%, #1a1a2e 43%, #0f0f1a 56%, #1a1a2e 57%, #1a1a2e 100%); border-radius: 4px; border: 1px solid rgba(255,255,255,.06); overflow: hidden; }
+  .odo-digit::before { content: ''; position: absolute; top: 0; left: 0; right: 0; height: 40%; background: linear-gradient(180deg, rgba(255,255,255,.07) 0%, transparent 100%); pointer-events: none; z-index: 2; }
+  .odo-digit::after { content: ''; position: absolute; bottom: 0; left: 0; right: 0; height: 40%; background: linear-gradient(0deg, rgba(0,0,0,.4) 0%, transparent 100%); pointer-events: none; z-index: 2; }
+  .odo-digit span { font-size: 22px; font-weight: 800; font-family: 'Courier New', monospace; color: #e8e8f0; letter-spacing: 0; z-index: 1; line-height: 1; text-shadow: 0 0 8px rgba(100,150,255,.4); }
+  .odo-digit.decimal { background: linear-gradient(180deg, #0f1a2e 0%, #0a1428 42%, #0f1a2e 43%, #070f1e 56%, #0f1a2e 57%, #0f1a2e 100%); border-color: rgba(59,130,246,.2); }
+  .odo-digit.decimal span { color: #60a5fa; text-shadow: 0 0 10px rgba(59,130,246,.6); }
+  .odo-separator { width: 2px; height: 32px; background: rgba(255,255,255,.06); border-radius: 1px; }
+  .odo-drum-unit { font-size: 11px; color: var(--text3); font-weight: 600; text-transform: uppercase; letter-spacing: 1px; }
+  /* Strip version for All-vehicles mini display */
+  .odo-drum.small .odo-digit { width: 24px; height: 34px; border-radius: 3px; }
+  .odo-drum.small .odo-digit span { font-size: 20px; }
+  html.light .odo-digit { background: linear-gradient(180deg, #1e2a4a 0%, #162040 42%, #1e2a4a 43%, #111830 56%, #1e2a4a 57%, #1e2a4a 100%); }
+  html.light .odo-drum { background: #0d0d1a; }
+  .odo-unit { font-size: 14px; color: var(--text3); margin-top: 4px; }
+  .odo-display { background: linear-gradient(135deg, #0A0E1A, #1a1f35); border-radius: 16px; padding: 16px 20px 20px; text-align: center; margin-bottom: 20px; border: 1px solid rgba(59,130,246,.2); position: relative; overflow: hidden; }
   .odo-display::before { content: ''; position: absolute; top: 0; left: 0; right: 0; height: 1px; background: linear-gradient(90deg, transparent, rgba(59,130,246,.5), transparent); }
   .odo-label { font-size: 11px; color: var(--text3); font-weight: 600; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 8px; }
-  .odo-val { font-size: 40px; font-weight: 800; letter-spacing: -2px; font-variant-numeric: tabular-nums; background: linear-gradient(135deg, #fff, #94A3B8); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; }
-  .odo-unit { font-size: 14px; color: var(--text3); margin-top: 4px; }
+  html.light .odo-display { background: linear-gradient(135deg,#1E3A5F,#2D5A8E); }
 
   /* ACTIVE TRIP CARD */
   @keyframes pulseDot { 0%,100% { opacity: 1; transform: scale(1); } 50% { opacity: .4; transform: scale(.8); } }
@@ -310,6 +324,9 @@
   .maint-card-sub { font-size: 11px; color: var(--text3); margin-top: 4px; }
   .maint-card-none-text { font-size: 12px; color: var(--text3); line-height: 1.4; }
   .maint-card-add-btn { margin-top: 8px; display: inline-flex; align-items: center; gap: 4px; font-size: 11px; font-weight: 700; color: var(--primary); cursor: pointer; }
+  .maint-card-vehicle { font-size: 11px; color: var(--text3); margin-bottom: 6px; font-weight: 600; }
+  .maint-allok { display: flex; align-items: center; gap: 8px; background: rgba(16,185,129,.08); border: 1px solid rgba(16,185,129,.25); border-radius: 12px; padding: 10px 14px; font-size: 13px; font-weight: 600; color: var(--green); margin-bottom: 20px; }
+  .maint-allok span { font-size: 15px; }
 
   /* START TRIP BUTTON (in trip modal) */
   .start-trip-btn { width: 100%; display: flex; align-items: center; justify-content: center; gap: 8px; padding: 12px; border-radius: 12px; border: 1.5px dashed var(--green); background: rgba(16,185,129,.06); color: var(--green); font-size: 14px; font-weight: 700; cursor: pointer; margin-bottom: 14px; transition: background .2s; }
@@ -656,6 +673,10 @@
       <div class="toggle-track" id="theme-toggle" onclick="toggleTheme()">
         <div class="toggle-thumb"></div>
       </div>
+    </div>
+    <div class="setting-row" style="cursor:default;flex-direction:column;align-items:stretch;gap:10px">
+      <div class="setting-label">Odometer Style</div>
+      <div style="display:flex;gap:8px" id="odo-style-row"></div>
     </div>
 
     <div class="section-title" style="margin-top:20px;margin-bottom:8px">Backup &amp; Restore</div>
@@ -1213,6 +1234,27 @@ function fmt(n, dec=0) {
   return n.toLocaleString('en-IN', { maximumFractionDigits: dec, minimumFractionDigits: dec });
 }
 
+// Renders a number as individual mechanical drum-style digit slots,
+// optionally in a compact 'small' variant for the multi-vehicle strip.
+// The last `decimalCount` digits are tinted blue (like the tenths/hundredths
+// drum on a real odometer that spins more visibly).
+function buildOdoDrum(km, small = false, decimalCount = 0) {
+  const padded = Math.round(km).toString().padStart(6, '0');
+  const digits = padded.split('');
+  const sizeClass = small ? ' small' : '';
+
+  // Insert a thin separator every 3 digits from the right (visual grouping)
+  const html = digits.map((d, i) => {
+    // The last `decimalCount` digits look like the fast-changing drum
+    const isDecimal = decimalCount > 0 && i >= digits.length - decimalCount;
+    // Thin separator before the last 3 digits group (at position 3 from end if >= 6 digits total)
+    const sepBefore = digits.length >= 5 && i === digits.length - 3 ? '<div class="odo-separator"></div>' : '';
+    return `${sepBefore}<div class="odo-digit${isDecimal ? ' decimal' : ''}"><span>${d}</span></div>`;
+  }).join('');
+
+  return `<div class="odo-drum${sizeClass}">${html}</div>`;
+}
+
 function today() { return new Date().toISOString().split('T')[0]; }
 
 function fmtDate(d) {
@@ -1246,7 +1288,7 @@ function showPage(id) {
   if (id==='trips') renderTripList();
   if (id==='expenses') renderExpenseList();
   if (id==='vehicles') renderVehiclesList();
-  if (id==='settings') { renderBackupFreqRow(); updateBackupSettingsRow(); updateOCRArchiveStatus(); }
+  if (id==='settings') { renderBackupFreqRow(); updateBackupSettingsRow(); updateOCRArchiveStatus(); renderOdoStyleRow(); }
 }
 
 // ─── MODALS ───────────────────────────────────────────────────
@@ -2918,9 +2960,13 @@ function daysBetween(dateStr) {
 }
 
 function buildMaintCard(opts) {
-  const { icon, label, entry, currentOdo, thresholds, addCategoryId } = opts;
+  const { icon, label, entry, currentOdo, thresholds, addCategoryId, hideIfOk } = opts;
 
   if (!entry) {
+    // In "All vehicles" mode, a vehicle with literally no record yet isn't
+    // something to nag about on every visit — only show "no record" prompts
+    // in the single-vehicle view where it's specifically actionable.
+    if (hideIfOk) return '';
     return `<div class="maint-card none">
       <div class="maint-card-header">
         <div class="maint-card-icon">${icon}</div>
@@ -2935,9 +2981,15 @@ function buildMaintCard(opts) {
   const daysSince = daysBetween(entry.date);
   const status = kmSince != null ? getMaintStatus(kmSince, daysSince, thresholds) : 'ok';
 
+  // In "All vehicles" mode, only surface cards that actually need attention —
+  // an "OK" status for every vehicle would just be visual noise on a screen
+  // meant to flag what's coming due.
+  if (hideIfOk && status === 'ok') return '';
+
   const statusLabel = { ok: 'OK', 'due-soon': 'Due Soon', overdue: 'Overdue' }[status];
   const kmDisplay = kmSince != null ? fmt(kmSince) : '—';
   const daysDisplay = daysSince === 0 ? 'today' : daysSince === 1 ? '1 day ago' : `${daysSince} days ago`;
+  const vehicleTag = opts.vehicleName ? `<div class="maint-card-vehicle">${opts.vehicleName}</div>` : '';
 
   return `<div class="maint-card ${status}">
     <div class="maint-card-header">
@@ -2945,6 +2997,7 @@ function buildMaintCard(opts) {
       <div class="maint-card-label">${label}</div>
       <div class="maint-status-pill ${status}">${statusLabel}</div>
     </div>
+    ${vehicleTag}
     <div class="maint-card-km">${kmDisplay}<span class="maint-card-km-unit">km ago</span></div>
     <div class="maint-card-sub">Last: ${fmtDate(entry.date)} · ${daysDisplay}</div>
   </div>`;
@@ -2964,31 +3017,59 @@ function renderMaintenanceTracker(vExp, curV, isAll) {
   // Don't show the tracker at all if there are no vehicles yet
   if (vehicles.length === 0) { section.innerHTML = ''; return; }
 
-  const serviceEntry = findLastMaintenanceEntry(vExp, ['service', 'repair']);
-  const tireEntry = findLastMaintenanceEntry(vExp, ['tire']);
+  let cardsHtml = '';
 
-  // currentOdo: for a single vehicle, use its live odometer. For "All", use
-  // whichever vehicle the matched entry actually belongs to (since vehicles
-  // can be at very different odometer readings) — falls back to null (shows
-  // days-since only) if we can't resolve a specific vehicle for some reason.
-  function resolveOdoFor(entry) {
-    if (curV) return curV.odo;
-    if (entry) { const v = vehicles.find(x => x.id === entry.vehicleId); return v ? v.odo : null; }
-    return null;
+  if (!isAll && curV) {
+    // Single-vehicle view: always show both cards regardless of status,
+    // exactly as before — this is the per-vehicle detail view.
+    const serviceEntry = findLastMaintenanceEntry(vExp, ['service', 'repair']);
+    const tireEntry = findLastMaintenanceEntry(vExp, ['tire']);
+
+    cardsHtml += buildMaintCard({
+      icon: '🛠️', label: 'Service', entry: serviceEntry,
+      currentOdo: curV.odo, thresholds: MAINT_THRESHOLDS.service,
+      addCategoryId: 'service', hideIfOk: false,
+    });
+    cardsHtml += buildMaintCard({
+      icon: '⚙️', label: 'Tyres', entry: tireEntry,
+      currentOdo: curV.odo, thresholds: MAINT_THRESHOLDS.tire,
+      addCategoryId: 'tire', hideIfOk: false,
+    });
+  } else {
+    // "All vehicles" view: check EACH vehicle individually (not just the
+    // single most-recent entry across all of them combined) so a vehicle
+    // that's overdue never gets hidden behind a different vehicle's more
+    // recent, perfectly-fine service record. Only cards that are actually
+    // due-soon/overdue get rendered — true "OK" vehicles are omitted to
+    // keep this section focused on what needs attention.
+    vehicles.forEach(v => {
+      const thisVehicleExp = expenseEntries.filter(x => x.vehicleId === v.id);
+      const serviceEntry = findLastMaintenanceEntry(thisVehicleExp, ['service', 'repair']);
+      const tireEntry = findLastMaintenanceEntry(thisVehicleExp, ['tire']);
+
+      cardsHtml += buildMaintCard({
+        icon: '🛠️', label: 'Service', entry: serviceEntry,
+        currentOdo: v.odo, thresholds: MAINT_THRESHOLDS.service,
+        addCategoryId: 'service', hideIfOk: true, vehicleName: `${vehicleEmoji(v.type)} ${v.name}`,
+      });
+      cardsHtml += buildMaintCard({
+        icon: '⚙️', label: 'Tyres', entry: tireEntry,
+        currentOdo: v.odo, thresholds: MAINT_THRESHOLDS.tire,
+        addCategoryId: 'tire', hideIfOk: true, vehicleName: `${vehicleEmoji(v.type)} ${v.name}`,
+      });
+    });
   }
 
-  const serviceCard = buildMaintCard({
-    icon: '🛠️', label: 'Service', entry: serviceEntry,
-    currentOdo: resolveOdoFor(serviceEntry), thresholds: MAINT_THRESHOLDS.service,
-    addCategoryId: 'service',
-  });
-  const tireCard = buildMaintCard({
-    icon: '⚙️', label: 'Tyres', entry: tireEntry,
-    currentOdo: resolveOdoFor(tireEntry), thresholds: MAINT_THRESHOLDS.tire,
-    addCategoryId: 'tire',
-  });
+  if (!cardsHtml.trim()) {
+    // Nothing due — show a brief reassuring note instead of leaving an
+    // awkward gap where the tracker section used to be.
+    section.innerHTML = isAll
+      ? `<div class="maint-allok"><span>✓</span> All vehicles are up to date on service &amp; tyres</div>`
+      : '';
+    return;
+  }
 
-  section.innerHTML = `<div class="maint-grid">${serviceCard}${tireCard}</div>`;
+  section.innerHTML = `<div class="maint-grid">${cardsHtml}</div>`;
 }
 
 function renderDashboard() {
@@ -3020,14 +3101,14 @@ function renderDashboard() {
   if (curV) {
     odoEl.innerHTML = `<div class="odo-display">
       <div class="odo-label">Odometer · ${curV.name}</div>
-      <div class="odo-val">${fmt(curV.odo)}</div>
-      <div class="odo-unit">km · ${curV.fuel.toUpperCase()} · ${curV.reg||'—'}</div>
+      <div class="odo-drum-wrap">${buildOdoDisplay(curV.odo)}<div class="odo-drum-unit">km</div></div>
+      <div class="odo-unit">${curV.fuel.toUpperCase()} · ${curV.reg||'—'}</div>
     </div>`;
   } else if (vehicles.length > 0) {
     odoEl.innerHTML = `<div class="odo-strip">` +
       vehicles.map(v=>`<div class="odo-strip-item">
         <div class="odo-strip-name">${vehicleEmoji(v.type)} ${v.name}</div>
-        <div class="odo-strip-val">${fmt(v.odo)}</div>
+        ${buildOdoDisplay(v.odo, true)}
         <div class="odo-strip-km">km · ${v.reg||v.fuel}</div>
       </div>`).join('') + `</div>`;
   } else odoEl.innerHTML = '';
@@ -3959,6 +4040,43 @@ function initTheme() {
   const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
   const light = saved === 'light' || (saved === null && !prefersDark);
   applyTheme(light);
+}
+
+// ─── ODOMETER STYLE ──────────────────────────────────────────
+function getOdoStyle() {
+  return DB.get('fl_odo_style', 'mechanical'); // 'mechanical' | 'digital'
+}
+
+function setOdoStyle(style) {
+  DB.set('fl_odo_style', style);
+  renderOdoStyleRow();
+  // Re-render the dashboard odo section immediately
+  if (currentPage === 'dashboard') renderDashboard();
+}
+
+function renderOdoStyleRow() {
+  const el = document.getElementById('odo-style-row');
+  if (!el) return;
+  const current = getOdoStyle();
+  const opts = [
+    { key: 'mechanical', label: '⚙️ Mechanical' },
+    { key: 'digital',    label: '🔢 Digital' },
+  ];
+  el.innerHTML = opts.map(o =>
+    `<div class="filter-pill ${o.key === current ? 'active' : ''}" onclick="setOdoStyle('${o.key}')">${o.label}</div>`
+  ).join('');
+}
+
+// Build an odo reading in the currently-selected style
+function buildOdoDisplay(km, small = false) {
+  if (getOdoStyle() === 'mechanical') {
+    return buildOdoDrum(km, small);
+  }
+  // Digital style — clean gradient text like the original design
+  const sizeStyle = small
+    ? 'font-size:22px;font-weight:800;letter-spacing:-1px;font-variant-numeric:tabular-nums;background:linear-gradient(135deg,#fff,#94A3B8);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text'
+    : 'font-size:40px;font-weight:800;letter-spacing:-2px;font-variant-numeric:tabular-nums;background:linear-gradient(135deg,#fff,#94A3B8);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text';
+  return `<div style="${sizeStyle}">${fmt(km)}</div>`;
 }
 
 // ─── PULL TO REFRESH ──────────────────────────────────────────
